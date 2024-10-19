@@ -22,6 +22,7 @@ class BookingAccommodationSpider(scrapy.Spider):
         self.query = query
         self.number_of_rooms = number_of_rooms
         self.max_pages = max_pages
+        self.total_results = 0
 
     def start_requests(self):
         
@@ -82,8 +83,6 @@ class BookingAccommodationSpider(scrapy.Spider):
         if not body:
             log.error("Failed to retrieve GraphQL body from the first page.")
             return
-        with open("test.html", "w") as file:
-            file.write(response.text)
         _total_results = int(selector.css("h1").re(
             r"([\d,]+) properties found")[0].replace(",", ""))
         _max_scrape_results = self.max_pages * 25 if self.max_pages else _total_results
@@ -144,71 +143,93 @@ class BookingAccommodationSpider(scrapy.Spider):
                 accommodationItem['description'] = accommodation["description"]["text"]
 
                 yield scrapy.Request(url=accommodation_link, callback=self.parse_accommodation, meta={"accommodation": accommodationItem})
-            log.success(f"Scraped {len(parsed_data)} results from search pages")
+            self.total_results += len(parsed_data)
+            log.success(f"Scraped {self.total_results} results from search pages")
         except KeyError as e:
             log.error(f"KeyError: {e} in JSON response: {response.text}")
         except json.JSONDecodeError as e:
             log.error(f"JSONDecodeError: {e} in response: {response.text}")
 
-
     def parse_accommodation(self, response):
         accommodation = response.meta["accommodation"]
-        try: 
+
+        try:
             html = response.text
             sel = Selector(text=html)
-            css = lambda selector, sep="": sep.join(sel.css(selector).getall()).strip()
-            css_first = lambda selector: sel.css(selector).get("")
-            # get latitude and longitude of the hotel address:
-            lat, lng = css_first(".show_map_hp_link::attr(data-atlas-latlng)").split(",")
-            # get hotel features by type
-            facilities = response.xpath('//div[@data-testid="property-most-popular-facilities-wrapper"]//ul/li')
-
-            # Extract text and store in a list
-            facilities_list = []
-            for facility in facilities:
-                text = facility.xpath('.//span[contains(@class, "a5a5a75131")]/text()').get()
-                if text.strip():
-                    facilities_list.append(text.strip())
-            # clear duplicate values
-            facilities_list = list(dict.fromkeys(facilities_list))
-            if len(facilities_list) == 0:
-                log.warning("No facilities found for this accommodation {}".format(response.url))
-
-            property_section = response.xpath('//div[@data-testid="property-section--content"]')
-            # get checkin and checkout time
-            checkin = property_section.xpath('.//div[contains(.//div, "Check-in")]/following-sibling::div//text()').get()
-            checkout = property_section.xpath('.//div[contains(.//div, "Check-out")]/following-sibling::div//text()').get()
-            pet_info = property_section.xpath('.//div[contains(.//div, "Pets") or contains(.//text(), "pet")]/following-sibling::div//text()').get()
-
-            # Extract Card information
-            cards_accepted = property_section.xpath(
-                './/div[contains(.//div, "Cards accepted") or contains(.//text(), "Accepted payment")]/following-sibling::div[1]'
-            ).xpath('.//img/@alt').getall()
             
-            cards_accepted.extend(property_section.xpath(
-                './/div[contains(.//div, "Cards accepted") or contains(.//text(), "Accepted payment")]/following-sibling::div[1]'
-            ).xpath('.//text()').getall())
+            # Parse latitude and longitude
+            try:
+                lat, lng = response.css('[data-atlas-latlng]::attr(data-atlas-latlng)').get().split(",")
+                accommodation["lat"] = lat
+                accommodation["lng"] = lng
+            except Exception as e:
+                log.error(f"Error parsing latitude/longitude at {response.url}: {e}")
 
-            # Remove elements after item == " " in the list
-            if " " in cards_accepted:
-                cards_accepted = cards_accepted[:cards_accepted.index(" ")]
-            
+            # Parse facilities
+            try:
+                facilities_div = response.xpath('(//div[@data-testid="property-most-popular-facilities-wrapper"])[1]')
+                facilities = facilities_div.xpath('.//ul/li')
+                facilities_list = [" ".join(li.xpath('.//text()').getall()).strip() for li in facilities]
+                accommodation["unities"] = facilities_list
+                if len(facilities_list) == 0:
+                    log.warning(f"No facilities found for this accommodation {response.url}")
+            except Exception as e:
+                log.error(f"Error parsing facilities at {response.url}: {e}")
 
-            if len(cards_accepted) == 0:
-                cards_accepted.append("Cash")
+            # Parse check-in time
+            try:
+                property_section = response.xpath('//div[@data-testid="property-section--content"]')
+                checkin = property_section.xpath('.//div[contains(.//div, "Check-in")]/following-sibling::div//text()').get()
+                accommodation["checkin"] = checkin
+            except Exception as e:
+                log.error(f"Error parsing check-in time at {response.url}: {e}")
 
-            accommodation["address"] = css(".hp_address_subtitle::text")
-            accommodation["lat"] = lat
-            accommodation["lng"] = lng
-            accommodation["unities"] = facilities_list
-            accommodation["checkin"] = checkin
-            accommodation["checkout"] = checkout
-            accommodation["petInfo"] = pet_info
-            accommodation["paymentMethods"] = cards_accepted
+            # Parse check-out time
+            try:
+                checkout = property_section.xpath('.//div[contains(.//div, "Check-out")]/following-sibling::div//text()').get()
+                accommodation["checkout"] = checkout
+            except Exception as e:
+                log.error(f"Error parsing check-out time at {response.url}: {e}")
+
+            # Parse pet information
+            try:
+                pet_info = property_section.xpath('.//div[contains(.//div, "Pets") or contains(.//text(), "pet")]/following-sibling::div//text()').get()
+                accommodation["petInfo"] = pet_info
+            except Exception as e:
+                log.error(f"Error parsing pet information at {response.url}: {e}")
+
+            # Parse payment methods
+            try:
+                cards_accepted = property_section.xpath(
+                    './/div[contains(.//div, "Cards accepted") or contains(.//text(), "Accepted payment")]/following-sibling::div[1]'
+                ).xpath('.//img/@alt').getall()
+                cards_accepted.extend(property_section.xpath(
+                    './/div[contains(.//div, "Cards accepted") or contains(.//text(), "Accepted payment")]/following-sibling::div[1]'
+                ).xpath('.//text()').getall())
+
+                if " " in cards_accepted:
+                    cards_accepted = cards_accepted[:cards_accepted.index(" ")]
+
+                if len(cards_accepted) == 0:
+                    cards_accepted.append("Cash")
+                
+                accommodation["paymentMethods"] = cards_accepted
+            except Exception as e:
+                log.error(f"Error parsing payment methods at {response.url}: {e}")
+
+            # Parse address
+            try:
+                address = response.css(".hp_address_subtitle::text").get()
+                accommodation["address"] = address
+            except Exception as e:
+                log.error(f"Error parsing address at {response.url}: {e}")
+
             yield accommodation
+
         except Exception as e:
-            log.error(f"Error in parsing accommodation at {response.url}: {e}")
+            log.error(f"General error in parsing accommodation at {response.url}: {e}")
             yield accommodation
+
     
 # Example usage
 # if __name__ == "__main__":
