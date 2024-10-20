@@ -144,6 +144,6 @@ with DAG(
     )
 
 
-    task5
+    # task5
     # task pipeline
-    # [task1, task2] >> fetch_data_task >> transform_data_task
+    task1 >> task2 >> task3 >> task4 >> task5

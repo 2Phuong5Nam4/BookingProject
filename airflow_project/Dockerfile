@@ -16,6 +16,7 @@ RUN airflow db init
 
 RUN pip install --no-cache-dir apache-airflow apache-airflow-providers-docker scrapy loguru parsel pandas numpy
 # Optionally, add your own DAGs or plugins
+
 COPY ./dags /opt/airflow/dags
 COPY ./booking /opt/airflow/booking
 # COPY ./plugins /opt/airflow/plugins

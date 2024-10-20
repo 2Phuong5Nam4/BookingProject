@@ -53,6 +53,7 @@ x-airflow-common:
   build:
     context: ./airflow_project  # Correct path to your project
     dockerfile: ./Dockerfile  # Make sure Dockerfile is present here
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.2}
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
