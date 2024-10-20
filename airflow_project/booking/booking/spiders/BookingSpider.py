@@ -17,34 +17,39 @@ class BookingAccommodationSpider(scrapy.Spider):
     name = "accommodation"
     # Override the list of HTTP status codes to handle
 
-    def __init__(self, query="Viet Nam",  number_of_rooms=1, max_pages=100, *args, **kwargs):
+    def __init__(self,  number_of_rooms=1, max_pages=0, *args, **kwargs):
         super(BookingAccommodationSpider, self).__init__(*args, **kwargs)
-        self.query = query
+        with open("queries.txt", "r") as file:
+            self.queries = file.readlines()
         self.number_of_rooms = number_of_rooms
         self.max_pages = max_pages
         self.total_results = 0
+        self.current_results = 0
 
-    def start_requests(self):
-        
-        checking_year, checking_month, checking_day = ("", "", "")
-        checkout_year, checkout_month, checkout_day = ("", "", "")  
+    def create_url(self, query: str, number_of_rooms: int = 1, checkin: str = None, checkout: str = None) -> str:
+        if checkin and checkout:
+            checkin_year, checkin_month, checkin_day = checkin.split("-")
+            checkout_year, checkout_month, checkout_day = checkout.split("-")
+        else:
+            checkin_year, checkin_month, checkin_day = ("", "", "")
+            checkout_year, checkout_month, checkout_day = ("", "", "")
+
         url_params = urlencode(
             {
-                "ss": self.query,
-                "checkin_year": checking_year,
-                "checkin_month": checking_month,
-                "checkin_monthday": checking_day,
+                "ss": query,
+                "checkin_year": checkin_year,
+                "checkin_month": checkin_month,
+                "checkin_monthday": checkin_day,
                 "checkout_year": checkout_year,
                 "checkout_month": checkout_month,
                 "checkout_monthday": checkout_day,
-                "no_rooms": self.number_of_rooms
+                "no_rooms": number_of_rooms
             }
         )
         search_url = f"https://www.booking.com/searchresults.en-gb.html?{url_params}"
-        log.debug(f"Constructed URL: {search_url}")  # Log the encoded URL
-        yield scrapy.Request(url=search_url, callback=self.parse_first_page)
-
-    def parse_first_page(self, response):
+        return search_url
+    
+    def get_graphql_body(self, response):
         body = {}
 
         # Get GraphQL body from the first page
@@ -54,41 +59,53 @@ class BookingAccommodationSpider(scrapy.Spider):
         if not script_data:
             log.error(
                 "No script data found with attribute data-capla-store-data='apollo'")
-            body = {} 
-    
-        try:
-            json_script_data = json.loads(script_data)
-            keys_list = list(
-                json_script_data["ROOT_QUERY"]["searchQueries"].keys())
-            second_key = keys_list[1]
-            search_query_string = second_key[len("search("):-1]
-            input_json_object = json.loads(search_query_string)
-
-            with open("search_query.graphql", "r") as file:
-                full_query = file.read()
-
-            body = {
-                "operationName": "FullSearch",
-                "variables": {
-                    "input": input_json_object["input"],
-                    "carouselLowCodeExp": False
-                },
-                "extensions": {},
-                "query": full_query
-            }
-        except (KeyError, json.JSONDecodeError) as e:
-            log.error(f"Error in retrieving GraphQL body: {e}")
             body = {}
+        else: 
+            try:
+                json_script_data = json.loads(script_data)
+                keys_list = list(
+                    json_script_data["ROOT_QUERY"]["searchQueries"].keys())
+                second_key = keys_list[1]
+                search_query_string = second_key[len("search("):-1]
+                input_json_object = json.loads(search_query_string)
 
+                with open("search_query.graphql", "r") as file:
+                    full_query = file.read()
+
+                body = {
+                    "operationName": "FullSearch",
+                    "variables": {
+                        "input": input_json_object["input"],
+                        "carouselLowCodeExp": False
+                    },
+                    "extensions": {},
+                    "query": full_query
+                }
+            except (KeyError, json.JSONDecodeError) as e:
+                log.error(f"Error in retrieving GraphQL body: {e}")
+                body = {}
+        return body
+
+    def start_requests(self):
+        for query in self.queries:
+            query = query.strip()
+            search_url = self.create_url(query, self.number_of_rooms)
+            log.debug(f"Constructed query: {query}")
+            yield scrapy.Request(url=search_url, callback=self.parse_first_page, meta={"query": query})
+
+    def parse_first_page(self, response):
+
+        body = self.get_graphql_body(response)
         if not body:
             log.error("Failed to retrieve GraphQL body from the first page.")
             return
-        _total_results = int(selector.css("h1").re(
-            r"([\d,]+) properties found")[0].replace(",", ""))
+        selector = Selector(response.text)
+        _total_results = int(selector.css("h1").re(r"([\d,]+) properties found")[0].replace(",", ""))
         _max_scrape_results = self.max_pages * 25 if self.max_pages else _total_results
         if _max_scrape_results and _max_scrape_results < _total_results:
             _total_results = _max_scrape_results
-
+        self.total_results += _total_results
+        print(f"Query: {response.meta['query']}, Total results: {_total_results}")
         for offset in range(0, _total_results, 25):
             url = response.url
             body["variables"]["input"]["pagination"]["offset"] = offset
@@ -109,68 +126,71 @@ class BookingAccommodationSpider(scrapy.Spider):
                 method="POST",
                 headers=headers,
                 body=json.dumps(body),
-                callback=self.parse_graphql_response
+                callback=self.parse_graphql_response,
+                meta={"query": response.meta["query"]}
             )
-    
 
-    
     def parse_graphql_response(self, response):
         try:
             data = json.loads(response.text)
             parsed_data = data["data"]["searchQueries"]["search"]["results"]
             for accommodation in parsed_data:
-                accommodationItem = AccommodationItem()
-                accommodation_link = f"https://www.booking.com/hotel/vn/{accommodation["basicPropertyData"]["pageName"]}.en-gb.html"
-                
-                star = None
-                reviewScore = None
-                reviewCount = None
-                
-
-                if accommodation["basicPropertyData"]["starRating"] is not None:
-                    star = accommodation["basicPropertyData"]["starRating"]["value"]
-                if accommodation["basicPropertyData"]["reviewScore"] is not None:
-                    reviewScore = accommodation["basicPropertyData"]["reviewScore"]["score"]
-                    reviewCount = accommodation["basicPropertyData"]["reviewScore"]["reviewCount"]
-
-                accommodationItem['id'] = accommodation["basicPropertyData"]["id"]
-                accommodationItem['name'] = accommodation["displayName"]["text"]
-                accommodationItem['typeId'] = accommodation["basicPropertyData"]['accommodationTypeId']
-                accommodationItem['star'] = star
-                accommodationItem['reviewScore'] = reviewScore
-                accommodationItem['reviewCount'] = reviewCount
-                accommodationItem['url'] = accommodation_link
-                accommodationItem['description'] = accommodation["description"]["text"]
-
-                yield scrapy.Request(url=accommodation_link, callback=self.parse_accommodation, meta={"accommodation": accommodationItem})
-            self.total_results += len(parsed_data)
-            log.success(f"Scraped {self.total_results} results from search pages")
+                graphql_info = self.get_graphql_info(accommodation) 
+                yield scrapy.Request(url=graphql_info["url"], 
+                                     callback=self.parse_accommodation_url, 
+                                     meta={"graphql_info": graphql_info,
+                                            "query": response.meta["query"]
+                                     })
         except KeyError as e:
             log.error(f"KeyError: {e} in JSON response: {response.text}")
         except json.JSONDecodeError as e:
             log.error(f"JSONDecodeError: {e} in response: {response.text}")
+    
+    def get_graphql_info(self, accommodation):
+        id = accommodation["basicPropertyData"]["id"]
+        name = accommodation["displayName"]["text"]
+        typeId = accommodation["basicPropertyData"]['accommodationTypeId']
+        description = accommodation["description"]["text"]
+        star = accommodation["basicPropertyData"]["starRating"]["value"] if accommodation["basicPropertyData"]["starRating"] is not None else None
+        reviewScore = accommodation["basicPropertyData"]["reviewScore"]["score"] if accommodation["basicPropertyData"]["reviewScore"] is not None else None
+        reviewCount = accommodation["basicPropertyData"]["reviewScore"]["reviewCount"] if accommodation["basicPropertyData"]["reviewScore"] is not None else None
+        accommodation_link = f"https://www.booking.com/hotel/vn/{accommodation["basicPropertyData"]["pageName"]}.en-gb.html" 
+        city = accommodation["basicPropertyData"]["location"]["city"]               
+        address = accommodation["basicPropertyData"]["location"]["address"]
+        
+        return {
+            "id": id,
+            "name": name,
+            "typeId": typeId,
+            "description": description,
+            "star": star,
+            "reviewScore": reviewScore,
+            "reviewCount": reviewCount,
+            "url": accommodation_link,
+            "address": address + ", " + city
+        }
+    
 
-    def parse_accommodation(self, response):
-        accommodation = response.meta["accommodation"]
+
+    def parse_accommodation_url(self, response):
+        accommodation = AccommodationItem()
+        graphql_info = response.meta["graphql_info"]
 
         try:
             html = response.text
-            sel = Selector(text=html)
-            
             # Parse latitude and longitude
             try:
                 lat, lng = response.css('[data-atlas-latlng]::attr(data-atlas-latlng)').get().split(",")
-                accommodation["lat"] = lat
-                accommodation["lng"] = lng
             except Exception as e:
                 log.error(f"Error parsing latitude/longitude at {response.url}: {e}")
+                        # Parse address
+
 
             # Parse facilities
             try:
                 facilities_div = response.xpath('(//div[@data-testid="property-most-popular-facilities-wrapper"])[1]')
                 facilities = facilities_div.xpath('.//ul/li')
                 facilities_list = [" ".join(li.xpath('.//text()').getall()).strip() for li in facilities]
-                accommodation["unities"] = facilities_list
                 if len(facilities_list) == 0:
                     log.warning(f"No facilities found for this accommodation {response.url}")
             except Exception as e:
@@ -180,21 +200,18 @@ class BookingAccommodationSpider(scrapy.Spider):
             try:
                 property_section = response.xpath('//div[@data-testid="property-section--content"]')
                 checkin = property_section.xpath('.//div[contains(.//div, "Check-in")]/following-sibling::div//text()').get()
-                accommodation["checkin"] = checkin
             except Exception as e:
                 log.error(f"Error parsing check-in time at {response.url}: {e}")
 
             # Parse check-out time
             try:
                 checkout = property_section.xpath('.//div[contains(.//div, "Check-out")]/following-sibling::div//text()').get()
-                accommodation["checkout"] = checkout
             except Exception as e:
                 log.error(f"Error parsing check-out time at {response.url}: {e}")
 
             # Parse pet information
             try:
                 pet_info = property_section.xpath('.//div[contains(.//div, "Pets") or contains(.//text(), "pet")]/following-sibling::div//text()').get()
-                accommodation["petInfo"] = pet_info
             except Exception as e:
                 log.error(f"Error parsing pet information at {response.url}: {e}")
 
@@ -212,23 +229,33 @@ class BookingAccommodationSpider(scrapy.Spider):
 
                 if len(cards_accepted) == 0:
                     cards_accepted.append("Cash")
-                
-                accommodation["paymentMethods"] = cards_accepted
             except Exception as e:
                 log.error(f"Error parsing payment methods at {response.url}: {e}")
 
-            # Parse address
-            try:
-                address = response.css(".hp_address_subtitle::text").get()
-                accommodation["address"] = address
-            except Exception as e:
-                log.error(f"Error parsing address at {response.url}: {e}")
 
+            url_parsed = {
+                "lat": lat,
+                "lng": lng,
+                "unities": facilities_list,
+                "checkinTime": checkin,
+                "checkoutTime": checkout,
+                "petInfo": pet_info,
+                "paymentMethods": cards_accepted,
+                "location": response.meta["query"]
+            }
+            accommodation.update(url_parsed)
+            accommodation.update(graphql_info)
+            self.current_results += 1
+            log.success(f"Scraped {self.current_results}/{self.total_results} results")
             yield accommodation
 
         except Exception as e:
             log.error(f"General error in parsing accommodation at {response.url}: {e}")
             yield accommodation
+
+
+
+
 
     
 # Example usage

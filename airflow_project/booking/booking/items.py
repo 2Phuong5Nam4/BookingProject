@@ -8,7 +8,6 @@ import scrapy
 
 class AccommodationItem(scrapy.Item):
     # define the fields for your item here like:
-
     id = scrapy.Field()
     name = scrapy.Field()
     typeId = scrapy.Field()
@@ -21,10 +20,11 @@ class AccommodationItem(scrapy.Item):
     reviewCount = scrapy.Field()
     url = scrapy.Field()
     star = scrapy.Field()
-    checkin = scrapy.Field()
-    checkout = scrapy.Field()
+    checkinTime = scrapy.Field()
+    checkoutTime = scrapy.Field()
     paymentMethods = scrapy.Field()
     petInfo = scrapy.Field()
+    location = scrapy.Field()
     pass
 
 class RoomPriceItem(scrapy.Item):
@@ -33,7 +33,6 @@ class RoomPriceItem(scrapy.Item):
     roomId = scrapy.Field()
     roomName = scrapy.Field()
     checkin = scrapy.Field()
-    url = scrapy.Field()
     checkout = scrapy.Field()
     numGuests = scrapy.Field()
     roomArea = scrapy.Field()

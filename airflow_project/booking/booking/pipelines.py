@@ -12,6 +12,9 @@ from loguru import logger as log
        
 class CsvWriterPipeline:
     def open_spider(self, spider):
+        self.start_time = datetime.now()
+        log.info(f"Starting at {self.start_time}")
+
         # Get the current date
         self.current_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -25,6 +28,11 @@ class CsvWriterPipeline:
         # Close all open files
         for file in self.files.values():
             file.close()
+        
+        end_time = datetime.now()
+        log.info(f"Ending at {end_time}")
+        # Calculate and log the total time taken in minutes
+        log.info(f"Total time taken in minutes: {(end_time - self.start_time).total_seconds() / 60}")
 
     def process_item(self, item, spider):
         # Determine the item type
