@@ -17,7 +17,7 @@ class BookingAccommodationSpider(scrapy.Spider):
     name = "accommodation"
     # Override the list of HTTP status codes to handle
 
-    def __init__(self,  number_of_rooms=1, max_pages=0, *args, **kwargs):
+    def __init__(self,  number_of_rooms=1, max_pages=1, *args, **kwargs):
         super(BookingAccommodationSpider, self).__init__(*args, **kwargs)
         with open("queries.txt", "r") as file:
             self.queries = file.readlines()
@@ -87,7 +87,7 @@ class BookingAccommodationSpider(scrapy.Spider):
         return body
 
     def start_requests(self):
-        for query in self.queries:
+        for query in self.queries[0:2]:
             query = query.strip()
             search_url = self.create_url(query, self.number_of_rooms)
             log.debug(f"Constructed query: {query}")

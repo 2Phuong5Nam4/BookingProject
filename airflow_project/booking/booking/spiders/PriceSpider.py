@@ -12,7 +12,7 @@ from booking.items import AccommodationItem, RoomPriceItem
 from collections import defaultdict
 from datetime import datetime, timedelta
 import pandas as pd
-
+import json
 
 
 class PriceSpider(scrapy.Spider):
@@ -20,9 +20,10 @@ class PriceSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
         super(PriceSpider, self).__init__(*args, **kwargs)
         self.current_date = datetime.now().strftime("%Y-%m-%d")
-        self.max_range = 30
-        self.accommodation_file_path = f"hotel_data/{self.current_date}-AccommodationItem.csv"
-        df = pd.read_csv(self.accommodation_file_path, usecols=["url", "id"])
+        self.max_range = 10
+        self.accommodation_file_path = f"hotel_data/{self.current_date}-AccommodationItem.json"
+        df = pd.read_json(self.accommodation_file_path)
+        df = df[['id', 'url']]
         self.accommodation_urls = df.to_dict(orient="records")
         self.total_pages = len(self.accommodation_urls) * self.max_range
         self.current_pages = 0
