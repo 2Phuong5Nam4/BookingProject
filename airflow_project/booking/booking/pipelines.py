@@ -37,7 +37,10 @@ class JsonWriterPipeline:
         end_time = datetime.now()
         log.info(f"Ending at {end_time}")
         # Calculate and log the total time taken in minutes
-        log.info(f"Total time taken in minutes: {(end_time - self.start_time).total_seconds() / 60}")
+        hours, remainder = divmod((end_time - self.start_time).seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        log.info(f"Total time taken: {hours}h {minutes}m {seconds}s")
+
 
     def process_item(self, item, spider):
         # Determine the item type

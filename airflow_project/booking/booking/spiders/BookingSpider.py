@@ -105,7 +105,7 @@ class BookingAccommodationSpider(scrapy.Spider):
         if _max_scrape_results and _max_scrape_results < _total_results:
             _total_results = _max_scrape_results
         self.total_results += _total_results
-        print(f"Query: {response.meta['query']}, Total results: {_total_results}")
+        log.info(f"Query: {response.meta['query']}, Total results: {_total_results}")
         for offset in range(0, _total_results, 25):
             url = response.url
             body["variables"]["input"]["pagination"]["offset"] = offset
