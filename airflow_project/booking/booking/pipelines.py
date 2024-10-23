@@ -9,8 +9,9 @@ import csv
 import os
 from datetime import datetime
 from loguru import logger as log
+import json
        
-class CsvWriterPipeline:
+class JsonWriterPipeline:
     def open_spider(self, spider):
         self.start_time = datetime.now()
         log.info(f"Starting at {self.start_time}")
@@ -27,12 +28,16 @@ class CsvWriterPipeline:
     def close_spider(self, spider):
         # Close all open files
         for file in self.files.values():
+            file.write("]")  # Close the JSON array
             file.close()
         
         end_time = datetime.now()
         log.info(f"Ending at {end_time}")
         # Calculate and log the total time taken in minutes
-        log.info(f"Total time taken in minutes: {(end_time - self.start_time).total_seconds() / 60}")
+        hours, remainder = divmod((end_time - self.start_time).seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        log.info(f"Total time taken: {hours}h {minutes}m {seconds}s")
+
 
     def process_item(self, item, spider):
         # Determine the item type
@@ -41,15 +46,15 @@ class CsvWriterPipeline:
         # If the file for this item type does not exist, create it
         if item_type not in self.files:
             current_date = datetime.now().strftime("%Y-%m-%d")
-            file = open(f'hotel_data/{self.current_date}-{item_type}.csv', 'w', newline='')
+            file = open(f"hotel_data/{current_date}-{item_type}.json", "w")
             self.files[item_type] = file
-            fieldnames = item.keys()
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()
+            file.write("[")
         else:
             file = self.files[item_type]
+            file.write(",")
+        
+        json.dump(dict(item), file)
 
-        # Write the item to the appropriate file
-        writer = csv.DictWriter(file, fieldnames=item.keys())
-        writer.writerow(item)
+        return item
+
 

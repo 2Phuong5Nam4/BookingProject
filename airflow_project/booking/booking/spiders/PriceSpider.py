@@ -21,8 +21,11 @@ class PriceSpider(scrapy.Spider):
         super(PriceSpider, self).__init__(*args, **kwargs)
         self.current_date = datetime.now().strftime("%Y-%m-%d")
         self.max_range = 30
-        self.accommodation_file_path = f"hotel_data/{self.current_date}-AccommodationItem.csv"
-        df = pd.read_csv(self.accommodation_file_path, usecols=["url", "id"])
+        self.accommodation_file_path = f"hotel_data/{self.current_date}-AccommodationItem.json"
+                # Read the JSON file
+        df = pd.read_json(self.accommodation_file_path)
+        # Select the required columns
+        df = df[["id", "url"]]
         self.accommodation_urls = df.to_dict(orient="records")
         self.total_pages = len(self.accommodation_urls) * self.max_range
         self.current_pages = 0
