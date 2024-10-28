@@ -1,15 +1,10 @@
-Halong Bay
-Hoi An
-Hanoi
-Ho Chi Minh City
+Ha Long, Quang Ninh, Vietnam
+Hoi An, Quang Nam, Vietnam
 Phong Nha-Ke Bang National Park
-Phu Quoc
-Da Nang
-Sapa
-Mekong Delta
-Hue
-Nha Trang
-Datlat
-Bai Tu Long Bay
-Vung Tau
-Quy Nhon
+Phu Quoc, Kien Giang, Vietnam
+Da Nang, Vietnam
+Sapa, Lao Cai, Vietnam
+Thua Thien Hue, Vietnam
+Nha Trang, Khanh Hoa, Vietnam
+Da Lat, Lam Dong, Vietnam
+Vung Tau, Vietnam

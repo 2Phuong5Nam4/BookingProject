@@ -31,7 +31,7 @@ class JsonWriterPipeline:
             # Remove the trailing comma and newline, then close the JSON array
             file.seek(file.tell() - 2, 0)
             file.truncate()
-            file.write('\n]')
+            file.write('\n]\n')
             file.close()
             
         end_time = datetime.now()
@@ -57,4 +57,5 @@ class JsonWriterPipeline:
         # Write the item to the appropriate file
         line = json.dumps(dict(item), ensure_ascii=False) + ",\n"
         file.write(line)
+        return item  # Important to return the item for Scrapy
 

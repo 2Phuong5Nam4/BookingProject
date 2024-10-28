@@ -39,4 +39,5 @@ class RoomPriceItem(scrapy.Item):
     discount = scrapy.Field()
     beds = scrapy.Field()
     price = scrapy.Field()
+    url = srcapy.Field()
     pass
