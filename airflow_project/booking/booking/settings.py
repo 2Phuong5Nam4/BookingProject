@@ -21,7 +21,7 @@ ROBOTSTXT_OBEY = True
 REDIRECT_ENABLED = False
 HTTPERROR_ALLOW_ALL = True
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 128
+CONCURRENT_REQUESTS = 64
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay

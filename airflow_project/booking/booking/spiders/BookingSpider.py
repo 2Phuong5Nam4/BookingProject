@@ -98,6 +98,7 @@ class BookingAccommodationSpider(scrapy.Spider):
             search_url = self.create_url(query, self.number_of_rooms)
             log.debug(f"Constructed query: {query}")
             yield scrapy.Request(url=search_url, callback=self.parse_first_page, meta={"query": query})
+
     def close(self, reason):
         log.info(f"Total results: {self.query_total_results}")
         log.info(f"Total unique hotel ids: {len(self.hotel_ids)}")
@@ -129,6 +130,7 @@ class BookingAccommodationSpider(scrapy.Spider):
                 "content-type": "application/json",
                 "origin": "https://www.booking.com",
                 "pragma": "no-cache",
+                "connection": "keep-alive",
                 "priority": "u=1, i",
                 "referer": url,
             }
@@ -161,14 +163,12 @@ class BookingAccommodationSpider(scrapy.Spider):
 
                 self.hotel_ids.add(id)
                 self.query_crawled_results[response.meta["query"]].add(id)
-                self.current_results += 1
-                log.info(f"Current results: {self.current_results}/{self.total_results}")
-                # graphql_info = self.get_graphql_info(accommodation) 
-                # yield scrapy.Request(url=graphql_info["url"], 
-                #                      callback=self.parse_accommodation_url, 
-                #                      meta={"graphql_info": graphql_info,
-                #                             "query": response.meta["query"]
-                #                      })
+                graphql_info = self.get_graphql_info(accommodation) 
+                yield scrapy.Request(url=graphql_info["url"], 
+                                     callback=self.parse_accommodation_url, 
+                                     meta={"graphql_info": graphql_info,
+                                            "query": response.meta["query"]
+                                     })
         except KeyError as e:
             log.error(f"KeyError: {e} in JSON request: {response.url}")
         except json.JSONDecodeError as e:
@@ -206,7 +206,7 @@ class BookingAccommodationSpider(scrapy.Spider):
         graphql_info = response.meta["graphql_info"]
 
         try:
-            html = response.text
+
             # Parse latitude and longitude
             try:
                 lat, lng = response.css('[data-atlas-latlng]::attr(data-atlas-latlng)').get().split(",")
@@ -275,7 +275,7 @@ class BookingAccommodationSpider(scrapy.Spider):
             accommodation.update(url_parsed)
             accommodation.update(graphql_info)
             self.current_results += 1
-            log.info(f"Current results: {self.current_results}")
+            log.info(f"Current results: {self.current_results}/{self.total_results}")
             yield accommodation
 
         except Exception as e:

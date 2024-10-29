@@ -36,8 +36,10 @@ class PushJsonToXComOperator(BaseOperator):
 
     def execute(self, context):
         # Read the JSON data from the file
+        json_data = []
         with open(self.file_path, 'r', encoding='utf-8') as file:
-            json_data = json.load(file)
+            # read json line file
+            json_data = [json.loads(line) for line in file]
 
         # Push the JSON data to XCom
         self.xcom_push(context, key=self.xcom_key, value=json_data)
@@ -59,33 +61,33 @@ with DAG(
 ) as dag:
 
     # # task request url from postgres database
-    # get_url_task = PythonOperator(
-    #     task_id='get_url_from_postgres',
-    #     python_callable=extract_data_from_postgres,
-    #     provide_context=True,  # This passes the execution context (including the execution date) to the callable
-    #     dag=dag,
-    # )
+    get_url_task = PythonOperator(
+        task_id='get_url_from_postgres',
+        python_callable=extract_data_from_postgres,
+        provide_context=True,  # This passes the execution context (including the execution date) to the callable
+        dag=dag,
+    )
 
-    # save_url_task = PythonOperator(
-    #     task_id='save_url_to_file',
-    #     python_callable=save_url_to_file,
-    #     provide_context=True,  # This passes the execution context (including the execution date) to the callable
-    #     dag=dag,
-    # )
+    save_url_task = PythonOperator(
+        task_id='save_url_to_file',
+        python_callable=save_url_to_file,
+        provide_context=True,  # This passes the execution context (including the execution date) to the callable
+        dag=dag,
+    )
 
 
-    # task2 = BashOperator(
-    #     task_id='run_price_scrapy',
-    #     # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
-    #     bash_command='cd /opt/airflow/booking && scrapy crawl price',
-    #     dag=dag,
-    # )
+    task2 = BashOperator(
+        task_id='run_price_scrapy',
+        # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
+        bash_command=f'cd /opt/airflow/booking && scrapy crawl price -o /opt/airflow/booking/hotel_data/{CURRENT_DATE}-RoomPriceItem.jl',
+        dag=dag,
+    )
 
 
     push_json_price_task = PushJsonToXComOperator(
             
         task_id='push_json_price_to_xcom',
-        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-RoomPriceItem.json',  # Adjust the file path as needed
+        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-RoomPriceItem.jl',  # Adjust the file path as needed
         xcom_key='scrapy_json_data',
         dag=dag,
     )
@@ -111,5 +113,5 @@ with DAG(
 
     # task5
     # task pipeline
-    # get_url_task >> save_url_task >> task2 >> push_json_price_task >> process_room_task >> process_bed_price_task
-    push_json_price_task >> process_room_task >> process_bed_price_task
+    get_url_task >> save_url_task >> task2 >> push_json_price_task >> process_room_task >> process_bed_price_task
+    # push_json_price_task >> process_room_task >> process_bed_price_task

@@ -36,8 +36,10 @@ class PushJsonToXComOperator(BaseOperator):
 
     def execute(self, context):
         # Read the JSON data from the file
+        json_data = []
         with open(self.file_path, 'r', encoding='utf-8') as file:
-            json_data = json.load(file)
+            # read json line file
+            json_data = [json.loads(line) for line in file]
 
         # Push the JSON data to XCom
         self.xcom_push(context, key=self.xcom_key, value=json_data)
@@ -55,18 +57,18 @@ with DAG(
 
 
  # define the first task
-    # task1 = BashOperator(
-    #     task_id='run_booking_scrapy',
-    #     # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
-    #     bash_command='cd /opt/airflow/booking && scrapy crawl accommodation',
-    #     dag=dag,
-    # )
+    task1 = BashOperator(
+        task_id='run_booking_scrapy',
+        # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
+        bash_command=f'cd /opt/airflow/booking && scrapy crawl accommodation -o /opt/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',
+        dag=dag,
+    )
 
         # Define the task to push JSON data to XCom
     push_json_acc_task = PushJsonToXComOperator(
 
         task_id='push_json_acc_to_xcom',
-        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.json',  # Adjust the file path as needed
+        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',  # Adjust the file path as needed
         xcom_key='scrapy_json_data',
         dag=dag,
     )
@@ -85,5 +87,5 @@ with DAG(
         op_kwargs={'execution_date': '{{ ds }}'} 
     )
 
-    # task1 >> push_json_acc_task >> process_accommodation_task >> process_disciplines_task
-    push_json_acc_task >> process_accommodation_task >> process_disciplines_task
+    task1 >> push_json_acc_task >> process_accommodation_task >> process_disciplines_task
+    # push_json_acc_task >> process_accommodation_task >> process_disciplines_task

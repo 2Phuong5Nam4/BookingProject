@@ -10,7 +10,7 @@ def extract_data_from_postgres():
     pg_hook = PostgresHook(postgres_conn_id='postgres_default')
     
     # Define your SQL query
-    sql_query = 'SELECT id, url FROM public."accommodation"'
+    sql_query = 'SELECT acm_id, acm_url from public."Accommodation"'
     
     # Execute the query and fetch results
     connection = pg_hook.get_conn()

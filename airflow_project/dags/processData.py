@@ -86,13 +86,6 @@ def remove_accents(input_str):
     nfkd_str = unicodedata.normalize('NFKD', input_str)
     return ''.join([c for c in nfkd_str if not unicodedata.combining(c)])
 
-def extract_province(address):
-    # Chuyển đổi địa chỉ về dạng không dấu và in hoa để chuẩn hóa
-    address = remove_accents(address).title()  
-    for pvc_id, province_name in provinces.items():
-        if re.search(remove_accents(province_name), address, re.IGNORECASE):
-            return pvc_id
-    return "Unknown"
 
 def identify_pet_friendly(pet_info_series):
     return pet_info_series.str.contains('not allowed', case=False, na=False) == False
@@ -153,15 +146,13 @@ def AccommodationProcess(execution_date, **kwargs):
         'acm_description': data['description'].astype(str),  
         'acm_customer_rating': data['reviewScore'].astype(float),  
         'acm_review_count': data['reviewCount'].astype(int), 
-        'acm_province': data['address'].apply(lambda x: extract_province(x)).astype(str), 
-        'acm_location': data['address'].astype(str),
+        'acm_location': data['location'].astype(str),
+        'acm_address': data['address'].astype(str),
         'acm_lat': data['lat'].astype(float).round(6),
-        'acm_long': data['lng'].astype(float).round(6)
+        'acm_long': data['lng'].astype(float).round(6),
+        'acm_url': data['url'].astype(str)
     })
 
-    # Nếu dùng XCom
-    #ti = kwargs['ti']
-    #ti.xcom_push(key='accomodation_data', value=accommodation_df.to_dict(orient='records'))  
 
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
@@ -170,9 +161,9 @@ def AccommodationProcess(execution_date, **kwargs):
         for _, row in accommodation_df.iterrows():
             insert_stmt = """
                 INSERT INTO "Accommodation" (acm_id, acm_name, acm_type, acm_star_rating, acm_amenities, 
-                                           acm_description, acm_customer_rating, acm_review_count, acm_province, 
-                                           acm_location, acm_lat, acm_long)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                           acm_description, acm_customer_rating, acm_review_count, acm_address, 
+                                           acm_location, acm_lat, acm_long, acm_url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (acm_id) DO UPDATE SET
                     acm_name = EXCLUDED.acm_name,
                     acm_type = EXCLUDED.acm_type,
@@ -181,12 +172,17 @@ def AccommodationProcess(execution_date, **kwargs):
                     acm_description = EXCLUDED.acm_description,
                     acm_customer_rating = EXCLUDED.acm_customer_rating,
                     acm_review_count = EXCLUDED.acm_review_count,
-                    acm_province = EXCLUDED.acm_province,
+                    acm_address = EXCLUDED.acm_address,
                     acm_location = EXCLUDED.acm_location,
                     acm_lat = EXCLUDED.acm_lat,
-                    acm_long = EXCLUDED.acm_long;
+                    acm_long = EXCLUDED.acm_long,
+                    acm_url = EXCLUDED.acm_url;
             """
-            conn.execute(insert_stmt, tuple(row))
+            conn.execute(insert_stmt, (
+                row['acm_id'], row['acm_name'], row['acm_type'], row['acm_star_rating'], row['acm_amenities'],
+                row['acm_description'], row['acm_customer_rating'], row['acm_review_count'], row['acm_address'],
+                row['acm_location'], row['acm_lat'], row['acm_long'], row['acm_url'] 
+            ))
     print("Data loaded successfully to Accommodation table.")
 
 # Hàm xử lý bảng Disciplines

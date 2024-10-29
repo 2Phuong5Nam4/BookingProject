@@ -25,14 +25,13 @@ class PriceSpider(scrapy.Spider):
         self.total_pages = len(self.accommodation_urls) * self.max_range
         self.current_pages = 0
 
+
     def start_requests(self):
         for accommodation in self.accommodation_urls:
             for i in range(self.max_range):
                 checkin = self.current_date + timedelta(days=i)
-
                 checkout = checkin + timedelta(days=1)
                 # Parse the check-in date
-
                 checkin_year, checkin_month, checkin_day = checkin.strftime("%Y-%m-%d").split("-") 
                 checkout_year, checkout_month, checkout_day = checkout.strftime("%Y-%m-%d").split("-")  # Parse the check-out date
                 url_params = urlencode(
@@ -46,18 +45,17 @@ class PriceSpider(scrapy.Spider):
                         "no_rooms": 1
                     }
                 )
-
                 search_url = f"{accommodation['url']}?{url_params}"
-                # log.debug(f"Constructed checkin: {checkin} checkout: {checkout} \n URL: {search_url}")  # Log the encoded URL
                 yield scrapy.Request(url=search_url, 
-                                        callback=self.parse_room_prices, 
-                                        dont_filter=True,
-                                        meta={"checkin": checkin.strftime("%Y-%m-%d"), "checkout": checkout.strftime("%Y-%m-%d"), "id": accommodation["id"]}) 
+                                    callback=self.parse_room_prices, 
+                                    meta={"checkin": checkin.strftime("%Y-%m-%d"), "checkout": checkout.strftime("%Y-%m-%d"), "id": accommodation["id"]})
+                
 
     def parse_room_prices(self, response):
         id = response.meta.get("id")
         checkin = response.meta.get("checkin")
         checkout = response.meta.get("checkout")
+        
         try:
             table = response.css('table.hprt-table')
             rows = table.css('tbody').css('tr')
