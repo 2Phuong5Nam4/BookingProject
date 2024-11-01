@@ -18,10 +18,10 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
-REDIRECT_ENABLED = False
+REDIRECT_ENABLED = True
 HTTPERROR_ALLOW_ALL = True
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 64
+CONCURRENT_REQUESTS = 128
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
@@ -54,6 +54,14 @@ DOWNLOAD_DELAY = 0.1
 #DOWNLOADER_MIDDLEWARES = {
 #    "booking.middlewares.BookingDownloaderMiddleware": 543,
 #}
+# DOWNLOADER_MIDDLEWARES = {
+#     'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
+#     'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
+# }
+# ROTATING_PROXY_LIST = [
+#     '171.238.239.231:5000'
+
+# ]
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -64,7 +72,7 @@ DOWNLOAD_DELAY = 0.1
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-   "booking.pipelines.JsonWriterPipeline": 300,
+   "booking.pipelines.BookingPipeline": 300,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

@@ -17,6 +17,7 @@ import json
 
 class PriceSpider(scrapy.Spider):
     name = "price"
+
     def __init__(self, *args, **kwargs):
         super(PriceSpider, self).__init__(*args, **kwargs)
         self.current_date = datetime.now()
@@ -25,15 +26,15 @@ class PriceSpider(scrapy.Spider):
         self.total_pages = len(self.accommodation_urls) * self.max_range
         self.current_pages = 0
 
-
     def start_requests(self):
         for accommodation in self.accommodation_urls:
             for i in range(self.max_range):
                 checkin = self.current_date + timedelta(days=i)
                 checkout = checkin + timedelta(days=1)
                 # Parse the check-in date
-                checkin_year, checkin_month, checkin_day = checkin.strftime("%Y-%m-%d").split("-") 
-                checkout_year, checkout_month, checkout_day = checkout.strftime("%Y-%m-%d").split("-")  # Parse the check-out date
+                checkin_year, checkin_month, checkin_day = checkin.strftime("%Y-%m-%d").split("-")
+                checkout_year, checkout_month, checkout_day = checkout.strftime("%Y-%m-%d").split(
+                    "-")  # Parse the check-out date
                 url_params = urlencode(
                     {
                         "checkin_year": checkin_year,
@@ -46,16 +47,16 @@ class PriceSpider(scrapy.Spider):
                     }
                 )
                 search_url = f"{accommodation['url']}?{url_params}"
-                yield scrapy.Request(url=search_url, 
-                                    callback=self.parse_room_prices, 
-                                    meta={"checkin": checkin.strftime("%Y-%m-%d"), "checkout": checkout.strftime("%Y-%m-%d"), "id": accommodation["id"]})
-                
+                yield scrapy.Request(url=search_url,
+                                     callback=self.parse_room_prices,
+                                     meta={"checkin": checkin.strftime("%Y-%m-%d"),
+                                           "checkout": checkout.strftime("%Y-%m-%d"), "id": accommodation["id"]})
 
     def parse_room_prices(self, response):
         id = response.meta.get("id")
         checkin = response.meta.get("checkin")
         checkout = response.meta.get("checkout")
-        
+
         try:
             table = response.css('table.hprt-table')
             rows = table.css('tbody').css('tr')
@@ -65,8 +66,7 @@ class PriceSpider(scrapy.Spider):
                     item = RoomPriceItem()
                     item["accommodationId"] = id
                     item["checkin"] = checkin
-                    item["checkout"] =  checkout
-                    
+                    item["checkout"] = checkout
 
                     cols = row.css('td')
                     item["roomId"] = cols[0].css('a.hprt-roomtype-link::attr(data-room-id)').get()
@@ -77,8 +77,10 @@ class PriceSpider(scrapy.Spider):
                     # Strip the text and remove empty strings
                     item["beds"] = [bed.strip() for bed in beds if bed.strip()]
 
-                    item["roomArea"] = cols[0].css('div.hprt-facilities-facility[data-name-en="room size"] span::text').get()
-                    item["discount"] = cols[2].css('div[data-component="deals-container"] span.bui-badge__text::text').get()
+                    item["roomArea"] = cols[0].css(
+                        'div.hprt-facilities-facility[data-name-en="room size"] span::text').get()
+                    item["discount"] = cols[2].css(
+                        'div[data-component="deals-container"] span.bui-badge__text::text').get()
                     item["numGuests"] = cols[1].css('span.bui-u-sr-only::text').get().strip()
                     item["url"] = response.url
                     yield item

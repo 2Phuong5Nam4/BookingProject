@@ -1,4 +1,3 @@
-
 from airflow import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.bash import BashOperator
@@ -45,46 +44,43 @@ class PushJsonToXComOperator(BaseOperator):
         self.xcom_push(context, key=self.xcom_key, value=json_data)
 
 
-
-
 # Define the DAG
 with DAG(
-    dag_id='accommodation_scraping_dag',
-    default_args=default_args,
-    schedule_interval='0 8 * * *',
-    catchup=False,
+        dag_id='accommodation_scraping_dag',
+        default_args=default_args,
+        schedule_interval='0 8 * * *',
+        catchup=False,
 ) as dag:
-
-
- # define the first task
+    # define the first task
     task1 = BashOperator(
         task_id='run_booking_scrapy',
         # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
-        bash_command=f'cd /opt/airflow/booking && scrapy crawl accommodation -o /opt/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',
+        bash_command=f'cd /home/ubuntu/airflow/booking && scrapy crawl accommodation -o /home/ubuntu/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',
         dag=dag,
     )
 
-        # Define the task to push JSON data to XCom
+    # Define the task to push JSON data to XCom
     push_json_acc_task = PushJsonToXComOperator(
 
         task_id='push_json_acc_to_xcom',
-        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',  # Adjust the file path as needed
+        file_path=f'/home/ubuntu/airflow/booking/hotel_data/{CURRENT_DATE}-AccommodationItem.jl',
+        # Adjust the file path as needed
         xcom_key='scrapy_json_data',
         dag=dag,
     )
-    
+
     process_accommodation_task = PythonOperator(
         task_id='process_accommodation_data',
         python_callable=AccommodationProcess,
-        provide_context=True,  
-        op_kwargs={'execution_date': '{{ ds }}'} 
+        provide_context=True,
+        op_kwargs={'execution_date': '{{ ds }}'}
     )
 
     process_disciplines_task = PythonOperator(
         task_id='process_disciplines_data',
         python_callable=DisciplinesProcess,
-        provide_context=True,  
-        op_kwargs={'execution_date': '{{ ds }}'} 
+        provide_context=True,
+        op_kwargs={'execution_date': '{{ ds }}'}
     )
 
     task1 >> push_json_acc_task >> process_accommodation_task >> process_disciplines_task

@@ -6,80 +6,10 @@ from airflow import DAG
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import unicodedata
 
+
 # Các hàm phụ trợ
 # ----------------------------------------------------------------------------------------
-provinces = {
-    'AG': 'An Giang',
-    'BRVT': 'Bà Rịa - Vũng Tàu',
-    'BL': 'Bạc Liêu',
-    'BK': 'Bắc Kạn',
-    'BG': 'Bắc Giang',
-    'BN': 'Bắc Ninh',
-    'BTre': 'Bến Tre',
-    'BinhD': 'Bình Dương',
-    'BDinh': 'Bình Định',
-    'BPhuoc': 'Bình Phước',
-    'BThuan': 'Bình Thuận',
-    'CM': 'Cà Mau',
-    'CB': 'Cao Bằng',
-    'CT': 'Cần Thơ',
-    'DNang': 'Đà Nẵng',
-    'DLak': 'Đắk Lắk',
-    'DNong': 'Đắk Nông',
-    'DB': 'Điện Biên',
-    'DNai': 'Đồng Nai',
-    'DThap': 'Đồng Tháp',
-    'GL': 'Gia Lai',
-    'HG': 'Hà Giang',
-    'HNam': 'Hà Nam',
-    'HNoi': 'Hà Nội',
-    'HT': 'Hà Tĩnh',
-    'HD': 'Hải Dương',
-    'HP': 'Hải Phòng',
-    'HGiang': 'Hậu Giang',
-    'HB': 'Hòa Bình',
-    'HY': 'Hưng Yên',
-    'KH': 'Khánh Hòa',
-    'KG': 'Kiên Giang',
-    'KT': 'Kon Tum',
-    'LC': 'Lai Châu',
-    'LDong': 'Lâm Đồng',
-    'LS': 'Lạng Sơn',
-    'LCai': 'Lào Cai',
-    'LA': 'Long An',
-    'ND': 'Nam Định',
-    'NA': 'Nghệ An',
-    'NB': 'Ninh Bình',
-    'NThuan': 'Ninh Thuận',
-    'PT': 'Phú Thọ',
-    'PY': 'Phú Yên',
-    'QB': 'Quảng Bình',
-    'QNam': 'Quảng Nam',
-    'QNgai': 'Quảng Ngãi',
-    'QNinh': 'Quảng Ninh',
-    'QT': 'Quảng Trị',
-    'ST': 'Sóc Trăng',
-    'SL': 'Sơn La',
-    'TN': 'Tây Ninh',
-    'TB': 'Thái Bình',
-    'TNguyen': 'Thái Nguyên',
-    'TH': 'Thanh Hóa',
-    'TTH': 'Thừa Thiên Huế',
-    'TG': 'Tiền Giang',
-    'HCM': 'TP HCM',
-    'TV': 'Trà Vinh',
-    'TQ': 'Tuyên Quang',
-    'VL': 'Vĩnh Long',
-    'VP': 'Vĩnh Phúc',
-    'YB': 'Yên Bái'
-}
 
-# def extract_province(address):
-#     address = address.title()
-#     for province in provinces:
-#         if re.search(province, address, re.IGNORECASE):
-#             return province
-#     return "Unknown"
 
 def remove_accents(input_str):
     # Loại bỏ dấu tiếng Việt bằng cách chuẩn hóa Unicode và lọc ký tự gốc
@@ -89,6 +19,7 @@ def remove_accents(input_str):
 
 def identify_pet_friendly(pet_info_series):
     return pet_info_series.str.contains('not allowed', case=False, na=False) == False
+
 
 def extract_checkin_checkout_times(time_string):
     # Case: Availabel 24 hours
@@ -110,23 +41,29 @@ def extract_checkin_checkout_times(time_string):
 
     return (None, None)
 
+
 def clean_area_column(area_series):
     return area_series.apply(lambda x: float(re.search(r'\d+', str(x)).group(0)) if pd.notnull(x) else 0.0)
+
 
 def clean_num_guests_column(guests_series):
     return guests_series.apply(lambda x: int(re.search(r'\d+', str(x)).group(0)) if pd.notnull(x) else 0)
 
+
 def calculate_future_interval(checkin_series, checkout_series):
     return (checkout_series - checkin_series).dt.days
 
+
 def clean_discount_column(discount_series):
     return discount_series.apply(lambda x: float(re.search(r'\d+(\.\d+)?', str(x)).group(0)) if pd.notnull(x) else 0.0)
+
+
 # --------------------------------------------------------------------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # Hàm xử lý bảng Accommodation
 def AccommodationProcess(execution_date, **kwargs):
-    #execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
+    # execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_acc_to_xcom', key='scrapy_json_data')
     print(f"DataFrame: {json_data}")
@@ -135,17 +72,17 @@ def AccommodationProcess(execution_date, **kwargs):
     data = pd.DataFrame(json_data)
 
     data = data.dropna(subset=['id'])
-   
+
     data['star'] = data['star'].fillna(0)
     accommodation_df = pd.DataFrame({
-        'acm_id': data['id'].astype(int), 
-        'acm_name': data['name'].astype(str),  
-        'acm_type': data['typeId'].astype(str),  
+        'acm_id': data['id'].astype(int),
+        'acm_name': data['name'].astype(str),
+        'acm_type': data['typeId'].astype(str),
         'acm_star_rating': data['star'].astype(int),
-        'acm_amenities': data['unities'].astype(str), 
-        'acm_description': data['description'].astype(str),  
-        'acm_customer_rating': data['reviewScore'].astype(float),  
-        'acm_review_count': data['reviewCount'].astype(int), 
+        'acm_amenities': data['unities'].astype(str),
+        'acm_description': data['description'].astype(str),
+        'acm_customer_rating': data['reviewScore'].astype(float),
+        'acm_review_count': data['reviewCount'].astype(int),
         'acm_location': data['location'].astype(str),
         'acm_address': data['address'].astype(str),
         'acm_lat': data['lat'].astype(float).round(6),
@@ -153,10 +90,9 @@ def AccommodationProcess(execution_date, **kwargs):
         'acm_url': data['url'].astype(str)
     })
 
-
-    pg_hook = PostgresHook(postgre_conn_id='postgres_default')
+    pg_hook = PostgresHook(postgres_conn_id='my_rds_postgres_conn')
     engine = pg_hook.get_sqlalchemy_engine()
-    
+
     with engine.connect() as conn:
         for _, row in accommodation_df.iterrows():
             insert_stmt = """
@@ -181,13 +117,14 @@ def AccommodationProcess(execution_date, **kwargs):
             conn.execute(insert_stmt, (
                 row['acm_id'], row['acm_name'], row['acm_type'], row['acm_star_rating'], row['acm_amenities'],
                 row['acm_description'], row['acm_customer_rating'], row['acm_review_count'], row['acm_address'],
-                row['acm_location'], row['acm_lat'], row['acm_long'], row['acm_url'] 
+                row['acm_location'], row['acm_lat'], row['acm_long'], row['acm_url']
             ))
     print("Data loaded successfully to Accommodation table.")
 
+
 # Hàm xử lý bảng Disciplines
 def DisciplinesProcess(execution_date, **kwargs):
-    #execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
+    # execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_acc_to_xcom', key='scrapy_json_data')
     print(f"DataFrame: {json_data}")
@@ -208,13 +145,13 @@ def DisciplinesProcess(execution_date, **kwargs):
         'dis_checkout_start': data['checkoutTime'].apply(lambda x: extract_checkin_checkout_times(str(x))[0]),
         'dis_checkout_end': data['checkoutTime'].apply(lambda x: extract_checkin_checkout_times(str(x))[1])
     })
-    
-    #ti = kwargs['ti']
-    #ti.xcom_push(key='disciplines_data', value=disciplines_df.to_dict(orient='records'))  
 
-    pg_hook = PostgresHook(postgre_conn_id='postgres_default')
+    # ti = kwargs['ti']
+    # ti.xcom_push(key='disciplines_data', value=disciplines_df.to_dict(orient='records'))
+
+    pg_hook = PostgresHook(postgres_conn_id='my_rds_postgres_conn')
     engine = pg_hook.get_sqlalchemy_engine()
-    
+
     with engine.connect() as conn:
         for _, row in disciplines_df.iterrows():
             insert_stmt = """
@@ -235,9 +172,10 @@ def DisciplinesProcess(execution_date, **kwargs):
             conn.execute(insert_stmt, tuple(row))
     print("Data loaded successfully to Disciplines table.")
 
+
 # Hàm xử lý theo bảng Room
 def RoomProcess(execution_date, **kwargs):
-    #execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
+    # execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_price_to_xcom', key='scrapy_json_data')
     print(f"DataFrame: {json_data}")
@@ -247,23 +185,23 @@ def RoomProcess(execution_date, **kwargs):
     data = data.dropna(subset=['accommodationId'])
 
     data['roomArea'] = clean_area_column(data['roomArea'])
-    data['numGuests'] = clean_num_guests_column(data['numGuests'])    
+    data['numGuests'] = clean_num_guests_column(data['numGuests'])
 
     room_df = pd.DataFrame({
-        'rm_room_id': data['roomId'].fillna(0).astype(int),               
-        'rm_accommodation_id': data['accommodationId'].astype(int),      
-        'rm_name': data['roomName'].astype(str),                
-        'rm_guests_number': data['numGuests'],  
-        'rm_area': data['roomArea'], 
+        'rm_room_id': data['roomId'].fillna(0).astype(int),
+        'rm_accommodation_id': data['accommodationId'].astype(int),
+        'rm_name': data['roomName'].astype(str),
+        'rm_guests_number': data['numGuests'],
+        'rm_area': data['roomArea'],
         'rm_bed_types': data['beds']
     })
-    
-    #ti = kwargs['ti']
-    #ti.xcom_push(key='room_data', value=room_df.to_dict(orient='records'))  
 
-    pg_hook = PostgresHook(postgre_conn_id='postgres_default')
+    # ti = kwargs['ti']
+    # ti.xcom_push(key='room_data', value=room_df.to_dict(orient='records'))
+
+    pg_hook = PostgresHook(postgres_conn_id='my_rds_postgres_conn')
     engine = pg_hook.get_sqlalchemy_engine()
-    
+
     with engine.connect() as conn:
         for _, row in room_df.iterrows():
             insert_stmt = """
@@ -278,9 +216,10 @@ def RoomProcess(execution_date, **kwargs):
             conn.execute(insert_stmt, tuple(row))
     print("Data loaded successfully to Rooms table.")
 
+
 # Hàm xử lý theo bảng Bed_price
 def BedPriceProcess(execution_date, **kwargs):
-    #execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
+    # execution_date = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_price_to_xcom', key='scrapy_json_data')
     print(f"DataFrame: {json_data}")
@@ -297,19 +236,29 @@ def BedPriceProcess(execution_date, **kwargs):
     crawled_date = datetime.today().date()
 
     bed_price_df = pd.DataFrame({
-        'bp_crawled_date': crawled_date,            
+        'bp_crawled_date': crawled_date,
         'bp_future_interval': (data['checkin'] - crawled_date).apply(lambda x: x.days),
-        'bp_room_id': data['roomId'].fillna(0).astype(int),  
+        'bp_room_id': data['roomId'].fillna(0).astype(int),
         'bp_accommodation_id': data['accommodationId'],
         'bp_price': data['price'],
         'bp_current_discount': data['discount']
     })
-    
-    #ti = kwargs['ti']
-    #ti.xcom_push(key='bed_price_data', value=bed_price_df.to_dict(orient='records'))  
 
-    pg_hook = PostgresHook(postgre_conn_id='postgres_default')
+    # ti = kwargs['ti']
+    # ti.xcom_push(key='bed_price_data', value=bed_price_df.to_dict(orient='records'))
+
+    pg_hook = PostgresHook(postgres_conn_id='my_rds_postgres_conn')
     engine = pg_hook.get_sqlalchemy_engine()
-    
-    bed_price_df.to_sql('Bed_price', engine, if_exists='append', index=False)
+
+    with engine.connect() as conn:
+        for _, row in bed_price_df.iterrows():
+            insert_stmt = """
+                INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accommodation_id, bp_price, bp_current_discount)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (bp_crawled_date, bp_room_id, bp_accommodation_id) DO UPDATE SET
+                    bp_future_interval = EXCLUDED.bp_future_interval,
+                    bp_price = EXCLUDED.bp_price,
+                    bp_current_discount = EXCLUDED.bp_current_discount;
+            """
+            conn.execute(insert_stmt, tuple(row))
     print("Data loaded successfully to Bed_price table.")

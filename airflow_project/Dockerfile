@@ -13,7 +13,7 @@ RUN apt-get update \
 # Set permissions if needed
 USER airflow
 RUN airflow db init
-
+#pip install apache-airflow apache-airflow-providers-docker scrapy loguru parsel pandas numpy
 RUN pip install --no-cache-dir apache-airflow apache-airflow-providers-docker scrapy loguru parsel pandas numpy
 # Optionally, add your own DAGs or plugins
 

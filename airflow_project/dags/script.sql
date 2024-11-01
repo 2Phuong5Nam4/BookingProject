@@ -27,14 +27,15 @@
 	);
 
 	CREATE TABLE IF NOT EXISTS "Bed_price" (
-		bp_crawled_date DATE,
-		bp_future_interval INT,
-		bp_room_id INT,
-		bp_accommodation_id INT,
-		bp_price INT,
-		bp_current_discount FLOAT,
-		CONSTRAINT fk_beds_rooms_id FOREIGN KEY (bp_room_id, bp_accommodation_id) REFERENCES "Rooms" (rm_room_id, rm_accommodation_id)
-	);
+        bp_crawled_date DATE,
+        bp_future_interval INT,
+        bp_room_id INT,
+        bp_accommodation_id INT,
+        bp_price INT,
+        bp_current_discount FLOAT,
+        CONSTRAINT fk_beds_rooms_id FOREIGN KEY (bp_room_id, bp_accommodation_id) REFERENCES "Rooms" (rm_room_id, rm_accommodation_id),
+        CONSTRAINT bed_price_unique UNIQUE (bp_crawled_date, bp_room_id, bp_accommodation_id)
+    );
 
 	CREATE TABLE IF NOT EXISTS "Disciplines" (
 		dis_accommodation_id INT PRIMARY KEY,

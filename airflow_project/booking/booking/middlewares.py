@@ -8,6 +8,10 @@ from scrapy import signals
 # useful for handling different item types with a single interface
 from itemadapter import is_item, ItemAdapter
 
+from twisted.web.http_headers import Headers
+from twisted.internet import reactor
+from h2.connection import H2Connection
+
 
 class BookingSpiderMiddleware:
     # Not all methods need to be defined. If a method is not defined,
