@@ -113,7 +113,7 @@ def DisciplinesProcess(**kwargs):
         'dis_accommodation_id': data['id'].astype(int),
         'dis_is_pet_allowed': data['petInfo'].apply(identify_pet_friendly).astype(bool),
         'dis_credit_card_required': data['paymentMethods'].apply(is_credit_card_required).astype(bool),
-        # 'dis_deposit_required': np.where(data['paymentMethods'].str.contains('deposit', case=False, na=False), 1.0, 0.0),
+
         'dis_payment_methods': data['paymentMethods'].astype(str),
         'dis_smoking_allowed': data['unities'].apply(is_smoking_allowed).astype(bool),
         'dis_checkin_start': data['checkinTime'].apply(lambda x: extract_checkin_checkout_times(str(x))[0]),

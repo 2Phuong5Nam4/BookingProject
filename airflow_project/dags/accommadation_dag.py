@@ -19,10 +19,6 @@ CURRENT_DATE = datetime.now().strftime("%Y-%m-%d")
 # Define the default arguments
 default_args = {
     'owner': 'cheep',
-    'email': ['21120576@student.hcmus.edu.vn'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'depends_on_past': False,
     'start_date': days_ago(0),  # Set start_date to the current date and time
 }
 
@@ -51,7 +47,6 @@ class PushJsonToXComOperator(BaseOperator):
 with DAG(
     dag_id='accommodation_scraping_dag',
     default_args=default_args,
-    schedule_interval='0 8 * * *',
     catchup=False,
 ) as dag:
 

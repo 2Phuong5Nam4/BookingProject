@@ -41,3 +41,18 @@ class RoomPriceItem(scrapy.Item):
     price = scrapy.Field()
     url = scrapy.Field()
     pass
+
+class CommentItem(scrapy.Item):
+    accommodationId = scrapy.Field()
+    roomId = scrapy.Field()
+    reviewedDate = scrapy.Field()
+    language = scrapy.Field()
+    title = scrapy.Field()
+    positiveText = scrapy.Field()
+    negativeText = scrapy.Field()
+    numNights = scrapy.Field()
+    stayStatus = scrapy.Field()
+    customerType = scrapy.Field()
+    checkinDate = scrapy.Field()
+    guestCountry = scrapy.Field()
+    reviewScore = scrapy.Field()

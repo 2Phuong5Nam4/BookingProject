@@ -1,0 +1,134 @@
+query ReviewList($input: ReviewListFrontendInput!) {
+  reviewListFrontend(input: $input) {
+    ... on ReviewListFrontendResult {
+      ratingScores {
+        name
+        translation
+        value
+        ufiScoresAverage {
+          ufiScoreLowerBound
+          ufiScoreHigherBound
+          __typename
+        }
+        __typename
+      }
+      topicFilters {
+        id
+        name
+        isSelected
+        translation {
+          id
+          name
+          __typename
+        }
+        __typename
+      }
+      reviewScoreFilter {
+        name
+        value
+        count
+        __typename
+      }
+      languageFilter {
+        name
+        value
+        count
+        countryFlag
+        __typename
+      }
+      timeOfYearFilter {
+        name
+        value
+        count
+        __typename
+      }
+      customerTypeFilter {
+        count
+        name
+        value
+        __typename
+      }
+      reviewCard {
+        reviewUrl
+        guestDetails {
+          username
+          avatarUrl
+          countryCode
+          countryName
+          avatarColor
+          showCountryFlag
+          anonymous
+          guestTypeTranslation
+          __typename
+        }
+        bookingDetails {
+          customerType
+          roomId
+          roomType {
+            id
+            name
+            __typename
+          }
+          checkoutDate
+          checkinDate
+          numNights
+          stayStatus
+          __typename
+        }
+        reviewedDate
+        isReviewerChoice
+        isTranslatable
+        helpfulVotesCount
+        reviewScore
+        textDetails {
+          title
+          positiveText
+          negativeText
+          textTrivialFlag
+          lang
+          __typename
+        }
+        isApproved
+        partnerReply {
+          reply
+          __typename
+        }
+        positiveHighlights {
+          start
+          end
+          __typename
+        }
+        negativeHighlights {
+          start
+          end
+          __typename
+        }
+        editUrl
+        photos {
+          id
+          urls {
+            size
+            url
+            __typename
+          }
+          kind
+          __typename
+        }
+        __typename
+      }
+      reviewsCount
+      sorters {
+        name
+        value
+        __typename
+      }
+      __typename
+    }
+    ... on ReviewsFrontendError {
+      statusCode
+      message
+      __typename
+    }
+    __typename
+  }
+}
