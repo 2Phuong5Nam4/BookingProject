@@ -1,9 +1,13 @@
 import pandas as pd
 import re
 from datetime import datetime
+from googletrans import Translator
+from requests.exceptions import RequestException
+import time
+import ssl
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-# Các hàm phụ trợ
+# Supporting functions
 # ----------------------------------------------------------------------------------------
 
 def identify_pet_friendly(value):
@@ -39,11 +43,11 @@ def clean_bed_str(value):
     return int(re.search(r'\d+', str(value)).group(0)) if value is not None else 0
 
 def clean_discount_column(value):
-    return float(re.search(r'\d+(\.\d+)?', str(value)).group(0)) if value is not None else 0.0
+    return float(re.search(r'\d+(\.\d+)?', str(value)).group(0)) if value is not None else 0.0 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------------------------------------------------------
-# Hàm xử lý bảng Accommodation
+# Process Accommodation table
 def AccommodationProcess(**kwargs):
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_acc_to_xcom', key='scrapy_json_data')
@@ -100,7 +104,7 @@ def AccommodationProcess(**kwargs):
 
     print("Data loaded successfully to Accommodation table.")
 
-# Hàm xử lý bảng Disciplines
+# Process Disciplines table
 def DisciplinesProcess(**kwargs):
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_acc_to_xcom', key='scrapy_json_data')
@@ -146,8 +150,8 @@ def DisciplinesProcess(**kwargs):
 
     print("Data loaded successfully to Disciplines table.")
 
-# Hàm xử lý theo bảng Room
-def RoomProcess(**kwargs):
+# Process Room table
+def RoomsProcess(**kwargs):
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_price_to_xcom', key='scrapy_json_data')
     print(f"DataFrame: {json_data}")
@@ -155,7 +159,7 @@ def RoomProcess(**kwargs):
     data = pd.DataFrame(json_data)
     data = data.dropna(subset=['roomId', 'accommodationId'])  
 
-    room_df = pd.DataFrame({
+    rooms_df = pd.DataFrame({
         'rm_room_id': data['roomId'].astype(int),               
         'rm_accommodation_id': data['accommodationId'].astype(int),      
         'rm_name': data['roomName'].astype(str),                
@@ -168,7 +172,7 @@ def RoomProcess(**kwargs):
     engine = pg_hook.get_sqlalchemy_engine()
     
     with engine.connect() as conn:
-        for _, row in room_df.iterrows():
+        for _, row in rooms_df.iterrows():
             insert_stmt = """
                 INSERT INTO "Rooms" (rm_room_id, rm_accommodation_id, rm_name, rm_guests_number, rm_area, rm_bed_types)
                 VALUES (%s, %s, %s, %s, %s, %s)
@@ -182,7 +186,7 @@ def RoomProcess(**kwargs):
 
     print("Data loaded successfully to Rooms table.")
 
-# Hàm xử lý theo bảng Bed_price
+# Process Bed_price table
 def BedPriceProcess(**kwargs):
     ti = kwargs['ti']
     json_data = ti.xcom_pull(task_ids='push_json_price_to_xcom', key='scrapy_json_data')
@@ -210,3 +214,32 @@ def BedPriceProcess(**kwargs):
     
     bed_price_df.to_sql('Bed_price', engine, if_exists='append', index=False)
     print("Data loaded successfully to Bed_price table.")
+
+def FeedBackProcess(**kwargs):
+    ti = kwargs['ti']
+    json_data = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='scrapy_json_data')
+    print(f"DataFrame: {json_data}")
+
+    data = pd.DataFrame(json_data)
+
+    data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s')  
+    data['reviewScore'] = data['reviewScore'].astype(int, errors='ignore')  
+    data = data.dropna(subset=['positiveText', 'negativeText'], how='all')
+
+    feedback_df = pd.DataFrame({
+        'fb_accommodation_id': data['accommodationId'],
+        'fb_room_id': data['roomId'],
+        'fb_nationality': data['guestCountry'],
+        'fb_date': data['reviewedDate'],
+        'fb_title': data['title'],
+        'fb_positive': data['positiveText'],
+        'fb_negative': data['negativeText'],
+        'fb_scoring': data['reviewScore'],
+        'fb_language_used': data['language']
+    })
+
+    pg_hook = PostgresHook(postgre_conn_id='postgres_default')
+    engine = pg_hook.get_sqlalchemy_engine()
+    
+    feedback_df.to_sql('Feedback', engine, if_exists='append', index=False)
+    print("Data loaded successfully to Feedback table.")
