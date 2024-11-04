@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 # Các hàm phụ trợ
@@ -195,6 +195,7 @@ def BedPriceProcess(**kwargs):
     data['checkout'] = pd.to_datetime(data['checkout'], format='%Y-%m-%d', errors='coerce').dt.date
 
     crawled_date = datetime.today().date()
+    crawled_date += timedelta(hours=7)
 
     bed_price_df = pd.DataFrame({
         'bp_crawled_date': crawled_date,
