@@ -44,6 +44,12 @@ def clean_bed_str(value):
 
 def clean_discount_column(value):
     return float(re.search(r'\d+(\.\d+)?', str(value)).group(0)) if value is not None else 0.0 
+
+def clean_text(text):
+    if pd.isna(text):
+        return text
+    cleaned_text = re.sub(r'[^^\w\s]', '', text)  
+    return cleaned_text
 # --------------------------------------------------------------------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -56,7 +62,7 @@ def AccommodationProcess(**kwargs):
     data = pd.DataFrame(json_data)
     data = data.dropna(subset=['id'])
    
-    accommodation_df = pd.DataFrame({
+    accommodation_data = pd.DataFrame({
         'acm_id': data['id'].astype(int), 
         'acm_name': data['name'].astype(str),  
         'acm_type': data['typeId'].astype(str),  
@@ -76,7 +82,7 @@ def AccommodationProcess(**kwargs):
     engine = pg_hook.get_sqlalchemy_engine()
     
     with engine.connect() as conn:
-        for _, row in accommodation_df.iterrows():
+        for _, row in accommodation_data.iterrows():
             insert_stmt = """
                 INSERT INTO "Accommodation" (acm_id, acm_name, acm_type, acm_star_rating, acm_amenities, 
                                            acm_description, acm_customer_rating, acm_review_count, acm_address, 
@@ -113,7 +119,7 @@ def DisciplinesProcess(**kwargs):
     data = pd.DataFrame(json_data)
     data = data.dropna(subset=['id'])
 
-    disciplines_df = pd.DataFrame({
+    disciplines_data = pd.DataFrame({
         'dis_accommodation_id': data['id'].astype(int),
         'dis_is_pet_allowed': data['petInfo'].apply(identify_pet_friendly).astype(bool),
         'dis_credit_card_required': data['paymentMethods'].apply(is_credit_card_required).astype(bool),
@@ -130,7 +136,7 @@ def DisciplinesProcess(**kwargs):
     engine = pg_hook.get_sqlalchemy_engine()
     
     with engine.connect() as conn:
-        for _, row in disciplines_df.iterrows():
+        for _, row in disciplines_data.iterrows():
             insert_stmt = """
                 INSERT INTO "Disciplines" (dis_accommodation_id, dis_is_pet_allowed, dis_credit_card_required, 
                                          dis_payment_methods, dis_smoking_allowed, dis_checkin_start, 
@@ -159,7 +165,7 @@ def RoomsProcess(**kwargs):
     data = pd.DataFrame(json_data)
     data = data.dropna(subset=['roomId', 'accommodationId'])  
 
-    rooms_df = pd.DataFrame({
+    rooms_data = pd.DataFrame({
         'rm_room_id': data['roomId'].astype(int),               
         'rm_accommodation_id': data['accommodationId'].astype(int),      
         'rm_name': data['roomName'].astype(str),                
@@ -172,7 +178,7 @@ def RoomsProcess(**kwargs):
     engine = pg_hook.get_sqlalchemy_engine()
     
     with engine.connect() as conn:
-        for _, row in rooms_df.iterrows():
+        for _, row in rooms_data.iterrows():
             insert_stmt = """
                 INSERT INTO "Rooms" (rm_room_id, rm_accommodation_id, rm_name, rm_guests_number, rm_area, rm_bed_types)
                 VALUES (%s, %s, %s, %s, %s, %s)
@@ -200,7 +206,7 @@ def BedPriceProcess(**kwargs):
 
     crawled_date = datetime.today().date()
 
-    bed_price_df = pd.DataFrame({
+    bed_price_data = pd.DataFrame({
         'bp_crawled_date': crawled_date,
         'bp_future_interval': (data['checkin'] - crawled_date).apply(lambda x: x.days).astype(int),
         'bp_room_id': data['roomId'].astype(int),
@@ -212,7 +218,7 @@ def BedPriceProcess(**kwargs):
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
     
-    bed_price_df.to_sql('Bed_price', engine, if_exists='append', index=False)
+    bed_price_data.to_sql('Bed_price', engine, if_exists='append', index=False)
     print("Data loaded successfully to Bed_price table.")
 
 def FeedBackProcess(**kwargs):
@@ -222,24 +228,30 @@ def FeedBackProcess(**kwargs):
 
     data = pd.DataFrame(json_data)
 
+    data = data.drop_duplicates()
     data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s')  
     data['reviewScore'] = data['reviewScore'].astype(int, errors='ignore')  
     data = data.dropna(subset=['positiveText', 'negativeText'], how='all')
 
-    feedback_df = pd.DataFrame({
-        'fb_accommodation_id': data['accommodationId'],
-        'fb_room_id': data['roomId'],
-        'fb_nationality': data['guestCountry'],
-        'fb_date': data['reviewedDate'],
-        'fb_title': data['title'],
-        'fb_positive': data['positiveText'],
-        'fb_negative': data['negativeText'],
-        'fb_scoring': data['reviewScore'],
-        'fb_language_used': data['language']
+    data_cleaned = data.copy()
+    data_cleaned['fb_title'] = data_cleaned['fb_title'].apply(clean_text)
+    data_cleaned['fb_positive'] = data_cleaned['fb_positive'].apply(clean_text)
+    data_cleaned['fb_negative'] = data_cleaned['fb_negative'].apply(clean_text)
+
+    feedback_data = pd.DataFrame({
+        'fb_accommodation_id': data_cleaned['accommodationId'],
+        'fb_room_id': data_cleaned['roomId'],
+        'fb_nationality': data_cleaned['guestCountry'],
+        'fb_date': data_cleaned['reviewedDate'],
+        'fb_title': data_cleaned['title'],
+        'fb_positive': data_cleaned['positiveText'],
+        'fb_negative': data_cleaned['negativeText'],
+        'fb_scoring': data_cleaned['reviewScore'],
+        'fb_language_used': data_cleaned['language']
     })
 
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
     
-    feedback_df.to_sql('Feedback', engine, if_exists='append', index=False)
+    feedback_data.to_sql('Feedback', engine, if_exists='append', index=False)
     print("Data loaded successfully to Feedback table.")
