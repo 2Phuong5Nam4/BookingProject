@@ -42,8 +42,14 @@ def extract_checkin_checkout_times(time_string):
 def clean_bed_str(value):
     return int(re.search(r'\d+', str(value)).group(0)) if value is not None else 0
 
+#def clean_discount_column(value):
+    #return float(re.search(r'\d+(\.\d+)?', str(value)).group(0)) if value is not None else 0.0 
+
 def clean_discount_column(value):
-    return float(re.search(r'\d+(\.\d+)?', str(value)).group(0)) if value is not None else 0.0 
+    if value is not None:
+        match = re.search(r'\d+(\.\d+)?', str(value))
+        return float(match.group(0)) if match else 0.0
+    return 0.0
 
 def clean_text(text):
     if pd.isna(text):
@@ -212,11 +218,24 @@ def BedPriceProcess(**kwargs):
         'bp_room_id': data['roomId'].astype(int),
         'bp_accommodation_id': data['accommodationId'].astype(int),
         'bp_price': data['price'].astype(int),
-        'bp_current_discount': data['discount'].apply(clean_discount_column).astype(float),
+        'bp_current_discount': data['discount'].apply(clean_discount_column).astype(float)
     })
     
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
+
+    with engine.connect() as conn:
+        for _, row in bed_price_data.iterrows():
+            insert_stmt = """
+                INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accomodation_id, bp_price, bp_current_discount)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (bp_room_id, bp_accommodation_id) DO UPDATE SET
+                    bp_crawled_date = EXCLUDED.bp_crawled_date,
+                    bp_future_interval = EXCLUDED.bp_future_interval,
+                    bp_price = EXCLUDED.bp_price,
+                    bp_current_discount = EXCLUDED.bp_current_discount;
+            """
+            conn.execute(insert_stmt, tuple(row))
     
     bed_price_data.to_sql('Bed_price', engine, if_exists='append', index=False)
     print("Data loaded successfully to Bed_price table.")
@@ -252,6 +271,21 @@ def FeedBackProcess(**kwargs):
 
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
-    
-    feedback_data.to_sql('Feedback', engine, if_exists='append', index=False)
+
+    with engine.connect() as conn:
+        for _, row in feedback_data.iterrows():
+            insert_stmt = """
+                INSERT INTO "Feedback" (fb_accommodation_id, fb_room_id, fb_nationality, fb_date, fb_title, fb_positive, fb_negative, fb_scoring, fb_language_used)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (fb_room_id, fb_accommodation_id) DO UPDATE SET
+                    fb_nationality = EXCLUDED.fb_nationality,
+                    fb_date = EXCLUDED.fb_date,
+                    fb_title = EXCLUDED.fb_title,
+                    fb_positive  = EXCLUDED.fb_positive ,
+                    fb_negative = EXCLUDED.fb_nagetive,
+                    fb_scoring = EXCLUDED.fb_scoring,
+                    fb_language_used = EXCLUDED.fb_language_used;
+            """
+            conn.execute(insert_stmt, tuple(row))
+
     print("Data loaded successfully to Feedback table.")
