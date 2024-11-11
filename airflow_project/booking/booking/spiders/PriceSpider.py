@@ -23,6 +23,10 @@ class PriceSpider(scrapy.Spider):
         self.current_date += timedelta(hours=7)
         self.max_range = 14
         self.accommodation_urls = json.load(open("hotel_data/url.json"))
+        # rename keys
+        for i in range(len(self.accommodation_urls)):
+            self.accommodation_urls[i]["id"] = self.accommodation_urls[i].pop("acm_id")
+            self.accommodation_urls[i]["url"] = self.accommodation_urls[i].pop("acm_url")
         self.total_pages = len(self.accommodation_urls) * self.max_range
         self.current_pages = 0
 

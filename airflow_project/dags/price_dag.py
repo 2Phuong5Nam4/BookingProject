@@ -20,10 +20,6 @@ CURRENT_DATE = CURRENT_DATE.strftime("%Y-%m-%d")
 # Define the default arguments
 default_args = {
     'owner': 'cheep',
-    'email': ['21120576@student.hcmus.edu.vn'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'depends_on_past': False,
     'start_date': days_ago(0),  # Set start_date to the current date and time
 }
 
@@ -57,14 +53,15 @@ def save_url_to_file(**kwargs):
 with DAG(
     dag_id='price_scraping_dag',
     default_args=default_args,
-    schedule_interval='0 8 * * *',
+    schedule_interval='0 17 * * *',
     catchup=False,
 ) as dag:
 
     # task request url from postgres database
     get_url_task = PythonOperator(
-        task_id='get_url_from_postgres',
+        task_id='get_url_from_postgres',   
         python_callable=extract_data_from_postgres,
+        op_kwargs={'sql_query': 'SELECT acm_id, acm_url from public."Accommodation"'},
         provide_context=True,  # This passes the execution context (including the execution date) to the callable
         dag=dag,
     )
@@ -115,4 +112,4 @@ with DAG(
     # task5
     # task pipeline
     get_url_task >> save_url_task >> task2 >> push_json_price_task >> process_room_task >> process_bed_price_task
-    # push_json_price_task >> process_room_task >> process_bed_price_task
+    # push_json_price_task >> process_bed_price_task
