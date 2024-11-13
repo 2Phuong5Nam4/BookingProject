@@ -91,23 +91,23 @@ with DAG(
     
 
 
-    # process_room_task = PythonOperator(
-    #     task_id='process_room_data',
-    #     python_callable=RoomProcess,
-    #     provide_context=True,  
-    #     op_kwargs={'execution_date': '2024-10-31'}
-    # )
+    process_room_task = PythonOperator(
+        task_id='process_room_data',
+        python_callable=RoomsProcess,
+        provide_context=True,  
+        op_kwargs={'execution_date': '2024-11-01'}
+    )
 
     process_bed_price_task = PythonOperator(
         task_id='process_be_price_data',
         python_callable=BedPriceProcess,
         provide_context=True,  
-        op_kwargs={'execution_date': '2024-10-31'}
+        op_kwargs={'execution_date': '2024-11-01'}
     )
 
 
 
     # task5
     # task pipeline
-    push_json_price_task >> process_bed_price_task
+    push_json_price_task >> process_room_task >> process_bed_price_task
     # push_json_price_task >> process_room_task >> process_bed_price_task

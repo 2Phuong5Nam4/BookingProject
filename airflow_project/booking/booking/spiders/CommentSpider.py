@@ -107,6 +107,7 @@ class CommentSpider(scrapy.Spider):
                 item['accommodationId'] = hotelId
                 item['roomId'] = review['bookingDetails']['roomId']
                 item['reviewedDate'] = review['reviewedDate']
+                item['reviewUrl'] = review['reviewUrl']
                 item['language'] = review['textDetails']['lang']
                 item['title'] = review['textDetails']['title']
                 item['positiveText'] = review['textDetails']['positiveText']

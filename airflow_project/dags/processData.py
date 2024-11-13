@@ -1,7 +1,6 @@
 import pandas as pd
 import re
 from datetime import datetime
-from googletrans import Translator
 from requests.exceptions import RequestException
 import time
 import ssl
@@ -227,65 +226,72 @@ def BedPriceProcess(**kwargs):
     with engine.connect() as conn:
         for _, row in bed_price_data.iterrows():
             insert_stmt = """
-                INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accomodation_id, bp_price, bp_current_discount)
+                INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accommodation_id, bp_price, bp_current_discount)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (bp_room_id, bp_accommodation_id) DO UPDATE SET
-                    bp_crawled_date = EXCLUDED.bp_crawled_date,
-                    bp_future_interval = EXCLUDED.bp_future_interval,
+                ON CONFLICT (bp_room_id, bp_accommodation_id, bp_crawled_date, bp_future_interval) DO UPDATE SET
                     bp_price = EXCLUDED.bp_price,
                     bp_current_discount = EXCLUDED.bp_current_discount;
             """
             conn.execute(insert_stmt, tuple(row))
-    
-    bed_price_data.to_sql('Bed_price', engine, if_exists='append', index=False)
     print("Data loaded successfully to Bed_price table.")
 
 def FeedBackProcess(**kwargs):
     ti = kwargs['ti']
-    json_data = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='scrapy_json_data')
-    print(f"DataFrame: {json_data}")
-
-    data = pd.DataFrame(json_data)
-
-    data = data.drop_duplicates()
-    data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s')  
-    data['reviewScore'] = data['reviewScore'].astype(int, errors='ignore')  
-    data = data.dropna(subset=['positiveText', 'negativeText'], how='all')
-
-    data_cleaned = data.copy()
-    data_cleaned['fb_title'] = data_cleaned['fb_title'].apply(clean_text)
-    data_cleaned['fb_positive'] = data_cleaned['fb_positive'].apply(clean_text)
-    data_cleaned['fb_negative'] = data_cleaned['fb_negative'].apply(clean_text)
-
-    feedback_data = pd.DataFrame({
-        'fb_accommodation_id': data_cleaned['accommodationId'],
-        'fb_room_id': data_cleaned['roomId'],
-        'fb_nationality': data_cleaned['guestCountry'],
-        'fb_date': data_cleaned['reviewedDate'],
-        'fb_title': data_cleaned['title'],
-        'fb_positive': data_cleaned['positiveText'],
-        'fb_negative': data_cleaned['negativeText'],
-        'fb_scoring': data_cleaned['reviewScore'],
-        'fb_language_used': data_cleaned['language']
-    })
-
+    num_chunks = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='comment_json_data_num_chunks')
+    print(f"Num chunks: {num_chunks}")
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
+    # Retrieve each chunk
+    for i in range(num_chunks):
+        chunk_key = f"comment_json_data_chunk_{i}"
+        chunk = ti.xcom_pull(task_ids="push_json_comment_to_xcom", key=chunk_key)
 
-    with engine.connect() as conn:
-        for _, row in feedback_data.iterrows():
-            insert_stmt = """
-                INSERT INTO "Feedback" (fb_accommodation_id, fb_room_id, fb_nationality, fb_date, fb_title, fb_positive, fb_negative, fb_scoring, fb_language_used)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (fb_room_id, fb_accommodation_id) DO UPDATE SET
-                    fb_nationality = EXCLUDED.fb_nationality,
-                    fb_date = EXCLUDED.fb_date,
-                    fb_title = EXCLUDED.fb_title,
-                    fb_positive  = EXCLUDED.fb_positive ,
-                    fb_negative = EXCLUDED.fb_nagetive,
-                    fb_scoring = EXCLUDED.fb_scoring,
-                    fb_language_used = EXCLUDED.fb_language_used;
-            """
-            conn.execute(insert_stmt, tuple(row))
+        data = pd.DataFrame(chunk)
+        data = data.dropna(subset=['accommodationId', 'roomId', 'reviewUrl'], how='any')
+        # data = data.dropna(subset=['accommodationId', 'roomId'], how='any')
+        data = data.drop_duplicates()
+        data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s', errors='coerce').dt.date
+
+
+        data['title'] = data['title'].apply(clean_text)
+        data['positiveText'] = data['positiveText'].apply(clean_text)
+        data['negativeText'] = data['negativeText'].apply(clean_text)
+
+        feedback_data = pd.DataFrame({
+            'fb_accommodation_id': data['accommodationId'].astype(int),
+            'fb_room_id': data['roomId'].astype(int), 
+            'fb_reviewed_date': data['reviewedDate'],
+            'fb_language_used': data['language'],
+            'fb_title': data['title'],
+            'fb_positive': data['positiveText'],
+            'fb_negative': data['negativeText'],
+            'fb_num_nights': data['numNights'].astype(int, errors='ignore'),
+            'fb_nationality': data['guestCountry'],
+            'fb_customer_type': data['customerType'],
+            'fb_checkin_date': pd.to_datetime(data['checkinDate'], format='%Y-%m-%d', errors='coerce').dt.date,
+            'fb_scoring': data['reviewScore'].astype(float, errors='ignore') ,
+            'fb_review_url': data['reviewUrl'],
+        })
+
+
+        with engine.connect() as conn:
+            for _, row in feedback_data.iterrows():
+                insert_stmt = """
+                    INSERT INTO "Feedback" ('fb_accommodation_id', 'fb_room_id', 'fb_reviewed_date', 'fb_language_used', 'fb_title', 'fb_positive', 'fb_negative', 'fb_num_nights', 'fb_nationality', 'fb_customer_type', 'fb_checkin_date', 'fb_scoring', 'fb_review_url')
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (fb_room_id, fb_accommodation_id, fb_review_url) DO UPDATE SET
+                        fb_language_used = EXCLUDED.fb_language_used,
+                        fb_title = EXCLUDED.fb_title,
+                        fb_positive = EXCLUDED.fb_positive,
+                        fb_negative = EXCLUDED.fb_negative,
+                        fb_num_nights = EXCLUDED.fb_num_nights,
+                        fb_nationality = EXCLUDED.fb_nationality,
+                        fb_customer_type = EXCLUDED.fb_customer_type,
+                        fb_checkin_date = EXCLUDED.fb_checkin_date,
+                        fb_scoring = EXCLUDED.fb_scoring,   
+                        fb_reviewed_date = EXCLUDED.fb_reviewed_date;
+                """
+                conn.execute(insert_stmt, tuple(row))
+        # feedback_data.to_sql('Feedback', con=engine, if_exists='append', index=False)
 
     print("Data loaded successfully to Feedback table.")

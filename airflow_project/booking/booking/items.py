@@ -56,3 +56,4 @@ class CommentItem(scrapy.Item):
     checkinDate = scrapy.Field()
     guestCountry = scrapy.Field()
     reviewScore = scrapy.Field()
+    reviewUrl = scrapy.Field()

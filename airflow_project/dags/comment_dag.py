@@ -26,10 +26,11 @@ default_args = {
 
 class PushJsonToXComOperator(BaseOperator):
     @apply_defaults
-    def __init__(self, file_path, xcom_key, *args, **kwargs):
+    def __init__(self, file_path, xcom_key, chunk_size=100000, *args, **kwargs):
         super(PushJsonToXComOperator, self).__init__(*args, **kwargs)
         self.file_path = file_path
         self.xcom_key = xcom_key
+        self.chunk_size = chunk_size
 
     def execute(self, context):
         # Read the JSON data from the file
@@ -37,9 +38,18 @@ class PushJsonToXComOperator(BaseOperator):
         with open(self.file_path, 'r', encoding='utf-8') as file:
             # read json line file
             json_data = [json.loads(line) for line in file]
+        # Chunk the data
+        chunks = [json_data[i:i + self.chunk_size] for i in range(0, len(json_data), self.chunk_size)]
 
-        # Push the JSON data to XCom
-        self.xcom_push(context, key=self.xcom_key, value=json_data)
+        # Push the number of chunks to XCom
+        self.xcom_push(context, key=f"{self.xcom_key}_num_chunks", value=len(chunks))
+        # Push each chunk to XCom
+        for i, chunk in enumerate(chunks):
+            chunk_key = f"{self.xcom_key}_chunk_{i}"
+            self.xcom_push(context, key=chunk_key, value=chunk)
+
+
+        
 
 def save_hotel_info_to_file(**kwargs):
     ti = kwargs['ti']
@@ -47,16 +57,18 @@ def save_hotel_info_to_file(**kwargs):
     with open(f'/opt/airflow/booking/hotel_data/hotel_info.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
-
+    
+        
 
 # Define the DAG
 with DAG(
     dag_id='comment_scraping_dag',
     default_args=default_args,
+    schedule_interval='0 17 * * *',
     catchup=False,
 ) as dag:
 
-    # # task request url from postgres database
+    # task request url from postgres database
     get_hotel_info_task = PythonOperator(
         task_id='get_hotel_info_from_postgres', 
         python_callable=extract_data_from_postgres,
@@ -85,11 +97,17 @@ with DAG(
             
         task_id='push_json_comment_to_xcom',
         file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',  # Adjust the file path as needed
-        xcom_key='scrapy_json_data',
+        xcom_key='comment_json_data',
         dag=dag,
     )
+    
 
+    process_feedback_task = PythonOperator(
+        task_id='process_comment_data',
+        python_callable=FeedBackProcess,
+        provide_context=True,  
+        op_kwargs={'execution_date': '{{ ds }}'} 
+    )
     # task5
     # task pipeline
-    get_hotel_info_task >> save_url_task >> task2 >> push_json_comment_task
-    # push_json_price_task >> process_room_task >> process_bed_price_task
+    get_hotel_info_task >> save_url_task >> task2 >> push_json_comment_task >> process_feedback_task
