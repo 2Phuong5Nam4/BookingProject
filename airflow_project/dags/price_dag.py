@@ -85,7 +85,7 @@ with DAG(
     push_json_price_task = PushJsonToXComOperator(
             
         task_id='push_json_price_to_xcom',
-        file_path=f'/opt/airflow/booking/hotel_data/price_data/2024-10-31-RoomPriceItem.jl',  # Adjust the file path as needed
+        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-RoomPriceItem.jl',
         xcom_key='scrapy_json_data',
         dag=dag,
     )
@@ -97,15 +97,15 @@ with DAG(
         task_id='process_room_data',
         python_callable=RoomsProcess,
         provide_context=True,  
-        op_kwargs={'execution_date': '2024-11-01'}
+        op_kwargs={'execution_date': CURRENT_DATE}
     )
 
     process_bed_price_task = PythonOperator(
         task_id='process_be_price_data',
         python_callable=BedPriceProcess,
         provide_context=True,  
-        op_kwargs={'execution_date': '2024-11-01'}
-    )
+        # pass current date to process
+        op_kwargs={'execution_date': CURRENT_DATE}
 
 
 
