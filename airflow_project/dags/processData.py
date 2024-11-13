@@ -194,7 +194,7 @@ def BedPriceProcess(**kwargs):
     data['checkin'] = pd.to_datetime(data['checkin'], format='%Y-%m-%d', errors='coerce').dt.date
     data['checkout'] = pd.to_datetime(data['checkout'], format='%Y-%m-%d', errors='coerce').dt.date
 
-    crawled_date = datetime.today().date()
+    crawled_date = pd.to_datetime(kwargs['execution_date'], format='%Y-%m-%d', errors='coerce').date()
 
     bed_price_df = pd.DataFrame({
         'bp_crawled_date': crawled_date,
