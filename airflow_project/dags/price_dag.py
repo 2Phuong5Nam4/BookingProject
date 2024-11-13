@@ -106,6 +106,7 @@ with DAG(
         provide_context=True,  
         # pass current date to process
         op_kwargs={'execution_date': CURRENT_DATE}
+    )
 
 
 
