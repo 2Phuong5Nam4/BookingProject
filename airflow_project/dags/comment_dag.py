@@ -57,8 +57,7 @@ def save_hotel_info_to_file(**kwargs):
     with open(f'/opt/airflow/booking/hotel_data/hotel_info.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
-    
-        
+
 
 # Define the DAG
 with DAG(

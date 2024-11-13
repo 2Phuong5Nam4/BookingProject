@@ -20,7 +20,8 @@ class PriceSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
         super(PriceSpider, self).__init__(*args, **kwargs)
         self.current_date = datetime.now()
-        self.max_range = 20
+        self.current_date += timedelta(hours=7)
+        self.max_range = 14
         self.accommodation_urls = json.load(open("hotel_data/url.json"))
         # rename keys
         for i in range(len(self.accommodation_urls)):

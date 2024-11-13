@@ -7,15 +7,16 @@ from airflow.operators.python import PythonOperator
 import pandas as pd
 import numpy as np
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from airflow.utils.decorators import apply_defaults
 from airflow.models import BaseOperator
 from processData import *
 from postgreQuery import *
 
-CURRENT_DATE = datetime.now().strftime("%Y-%m-%d")
-
+CURRENT_DATE = datetime.now()
+CURRENT_DATE += timedelta(hours=7)
+CURRENT_DATE = CURRENT_DATE.strftime("%Y-%m-%d")
 # Define the default arguments
 default_args = {
     'owner': 'cheep',
