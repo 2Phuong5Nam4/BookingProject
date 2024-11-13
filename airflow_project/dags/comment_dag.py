@@ -13,10 +13,9 @@ from airflow.utils.decorators import apply_defaults
 from airflow.models import BaseOperator
 from processData import *
 from postgreQuery import *
-from loguru import logger as log
-CURRENT_DATE = datetime.now()
-CURRENT_DATE += timedelta(hours=7)
-CURRENT_DATE = CURRENT_DATE.strftime("%Y-%m-%d")
+
+CURRENT_DATE = datetime.now().strftime("%Y-%m-%d")
+
 # Define the default arguments
 default_args = {
     'owner': 'cheep',
@@ -36,11 +35,9 @@ class PushJsonToXComOperator(BaseOperator):
     def execute(self, context):
         # Read the JSON data from the file
         json_data = []
-        log.debug('Reading json data...')
         with open(self.file_path, 'r', encoding='utf-8') as file:
             # read json line file
             json_data = [json.loads(line) for line in file]
-        log.success('Done reading!')
         # Chunk the data
         chunks = [json_data[i:i + self.chunk_size] for i in range(0, len(json_data), self.chunk_size)]
 
@@ -49,9 +46,7 @@ class PushJsonToXComOperator(BaseOperator):
         # Push each chunk to XCom
         for i, chunk in enumerate(chunks):
             chunk_key = f"{self.xcom_key}_chunk_{i}"
-            log.debug(f'Pushing data to xcom from chunk {i}...')
             self.xcom_push(context, key=chunk_key, value=chunk)
-            log.success(f'Done pushing!')
 
 
         
