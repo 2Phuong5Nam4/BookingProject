@@ -21,7 +21,7 @@ class PriceSpider(scrapy.Spider):
         super(PriceSpider, self).__init__(*args, **kwargs)
         self.current_date = datetime.now()
         self.current_date += timedelta(hours=7)
-        self.max_range = 14
+        self.max_range = [0, 1, 2, 5, 7, 14, 30]
         self.accommodation_urls = json.load(open("hotel_data/url.json"))
         # rename keys
         for i in range(len(self.accommodation_urls)):
@@ -33,7 +33,7 @@ class PriceSpider(scrapy.Spider):
 
     def start_requests(self):
         for accommodation in self.accommodation_urls:
-            for i in range(self.max_range):
+            for i in self.max_range:
                 checkin = self.current_date + timedelta(days=i)
                 checkout = checkin + timedelta(days=1)
                 # Parse the check-in date
