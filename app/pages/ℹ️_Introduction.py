@@ -32,7 +32,7 @@ with col3:
 conn = st.connection("postgresql", type="sql")
 
 def postgres_query(province=None, star_range=None, customer_rating=None, limit=10):
-    base = "SELECT * FROM accommodation"
+    base = "SELECT * FROM public.\"Accommodation\""
     conditions = []
     if province is not None and province != "All":
         conditions.append(f"acm_location = '{provinces[province]}'")

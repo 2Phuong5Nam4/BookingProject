@@ -57,25 +57,7 @@ def save_hotel_info_to_file(**kwargs):
     with open(f'/opt/airflow/booking/hotel_data/hotel_info.json', 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
-def CommentProcess(**kwargs):
-    ti = kwargs['ti']
-    num_chunks = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='comment_json_data_num_chunks')
-    print(f"Num chunks: {num_chunks}")
-    
-    # Retrieve each chunk
-    json_data = []
-    for i in range(num_chunks):
-        chunk_key = f"comment_json_data_chunk_{i}"
-        chunk = ti.xcom_pull(task_ids="push_json_comment_to_xcom", key=chunk_key)
-        df = pd.DataFrame(chunk)
 
-        df.to_csv(f'/opt/airflow/logs/chunk_{i}.csv', index=False)
-        print(f'Successfully! {df}')
-        json_data.extend(chunk)
-    print(f'==> {json_data}')
-    # Convert the combined JSON data into a Pandas DataFrame
-    
-        
 
 # Define the DAG
 with DAG(
@@ -110,24 +92,21 @@ with DAG(
     )
 
 
-    # push_json_comment_task = PushJsonToXComOperator(
+    push_json_comment_task = PushJsonToXComOperator(
             
-    #     task_id='push_json_comment_to_xcom',
-    #     file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',  # Adjust the file path as needed
-    #     xcom_key='comment_json_data',
-    #     dag=dag,
-    # )
+        task_id='push_json_comment_to_xcom',
+        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',  # Adjust the file path as needed
+        xcom_key='comment_json_data',
+        dag=dag,
+    )
     
-    # process_comment_task = PythonOperator(
-    #     task_id='process_comment_data',
-    #     python_callable=CommentProcess,
-    #     provide_context=True,  
-    #     op_kwargs={'execution_date': '{{ ds }}'} 
-    # )
 
-
+    process_feedback_task = PythonOperator(
+        task_id='process_comment_data',
+        python_callable=FeedBackProcess,
+        provide_context=True,  
+        op_kwargs={'execution_date': '{{ ds }}'} 
+    )
     # task5
     # task pipeline
-    get_hotel_info_task >> save_url_task >> task2 
-    # push_json_comment_task >> process_comment_task
-    # push_json_price_task >> process_room_task >> process_bed_price_task
+    get_hotel_info_task >> save_url_task >> task2 >> push_json_comment_task >> process_feedback_task

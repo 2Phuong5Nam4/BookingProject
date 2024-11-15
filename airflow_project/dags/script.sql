@@ -33,6 +33,7 @@
 		bp_accommodation_id INT,
 		bp_price INT,
 		bp_current_discount FLOAT,
+		PRIMARY KEY (bp_crawled_date, bp_future_interval, bp_room_id, bp_accommodation_id),
 		CONSTRAINT fk_beds_rooms_id FOREIGN KEY (bp_room_id, bp_accommodation_id) REFERENCES "Rooms" (rm_room_id, rm_accommodation_id)
 	);
 
@@ -53,11 +54,16 @@
 		fb_accommodation_id INT,
 		fb_room_id INT,
 		fb_nationality VARCHAR,
-		fb_date TIMESTAMP,
+		fb_reviewed_date TIMESTAMP,
 		fb_title VARCHAR,
 		fb_positive VARCHAR,
 		fb_negative VARCHAR,
+		fb_num_nights INT,
+		fb_customer_type VARCHAR,
+		fb_checkin_date DATE,
 		fb_scoring INT,
 		fb_language_used VARCHAR,
+		fb_review_url VARCHAR,
+		PRIMARY KEY (fb_accommodation_id, fb_room_id, fb_review_url)
 		CONSTRAINT fk_feedback_rooms_id FOREIGN KEY (fb_accommodation_id, fb_room_id) REFERENCES "Rooms" (rm_room_id, rm_accommodation_id)
 	);

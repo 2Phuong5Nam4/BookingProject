@@ -211,8 +211,7 @@ def BedPriceProcess(**kwargs):
     data['checkin'] = pd.to_datetime(data['checkin'], format='%Y-%m-%d', errors='coerce').dt.date
     data['checkout'] = pd.to_datetime(data['checkout'], format='%Y-%m-%d', errors='coerce').dt.date
 
-    crawled_date = datetime.today().date()
-    crawled_date += timedelta(hours=7)
+    crawled_date = pd.to_datetime(kwargs['execution_date'], format='%Y-%m-%d', errors='coerce').date()
 
     bed_price_data = pd.DataFrame({
         'bp_crawled_date': crawled_date,
@@ -238,39 +237,15 @@ def BedPriceProcess(**kwargs):
 
 def FeedBackProcess(**kwargs):
     ti = kwargs['ti']
-    json_data = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='scrapy_json_data')
-    print(f"DataFrame: {json_data}")
-
-    data = pd.DataFrame(json_data)
-
-    data = data.drop_duplicates()
-    data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s')  
-    data['reviewScore'] = data['reviewScore'].astype(int, errors='ignore')  
-    data = data.dropna(subset=['positiveText', 'negativeText'], how='all')
-
-    data_cleaned = data.copy()
-    data_cleaned['fb_title'] = data_cleaned['fb_title'].apply(clean_text)
-    data_cleaned['fb_positive'] = data_cleaned['fb_positive'].apply(clean_text)
-    data_cleaned['fb_negative'] = data_cleaned['fb_negative'].apply(clean_text)
-
-    feedback_data = pd.DataFrame({
-        'fb_accommodation_id': data_cleaned['accommodationId'],
-        'fb_room_id': data_cleaned['roomId'],
-        'fb_nationality': data_cleaned['guestCountry'],
-        'fb_date': data_cleaned['reviewedDate'],
-        'fb_title': data_cleaned['title'],
-        'fb_positive': data_cleaned['positiveText'],
-        'fb_negative': data_cleaned['negativeText'],
-        'fb_scoring': data_cleaned['reviewScore'],
-        'fb_language_used': data_cleaned['language']
-    })
-
+    num_chunks = ti.xcom_pull(task_ids='push_json_comment_to_xcom', key='comment_json_data_num_chunks')
+    print(f"Num chunks: {num_chunks}")
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
+    # Retrieve each chunk
     for i in range(num_chunks):
         chunk_key = f"comment_json_data_chunk_{i}"
         chunk = ti.xcom_pull(task_ids="push_json_comment_to_xcom", key=chunk_key)
-        
+
         data = pd.DataFrame(chunk)
         data = data.dropna(subset=['accommodationId', 'roomId', 'reviewUrl'], how='any')
         # data = data.dropna(subset=['accommodationId', 'roomId'], how='any')
