@@ -225,13 +225,13 @@ def BedPriceProcess(**kwargs):
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
 
-    with engine.connect() as conn:
-        for _, row in bed_price_data.iterrows():
-            insert_stmt = """
-                INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accommodation_id, bp_price, bp_current_discount)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """
-            conn.execute(insert_stmt, tuple(row))
+    # with engine.connect() as conn:
+    #     for _, row in bed_price_data.iterrows():
+    #         insert_stmt = """
+    #             INSERT INTO "Bed_price" (bp_crawled_date, bp_future_interval, bp_room_id, bp_accommodation_id, bp_price, bp_current_discount)
+    #             VALUES (%s, %s, %s, %s, %s, %s);
+    #         """
+    #         conn.execute(insert_stmt, tuple(row))
     bed_price_data.to_sql('Bed_price', engine, if_exists='append', index=False)
     print("Data loaded successfully to Bed_price table.")
 
