@@ -28,7 +28,7 @@ selected5 = option_menu(None, ["Accommodation Dashboard", "Price Dashboard"],
                         on_change=on_change, key='menu_5', orientation="horizontal")
 # Initialize session state if not already initialized
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Accommodation Dashboard"
+    st.session_state.current_page = "Price Dashboard"
 
 # Display the appropriate page based on the current page
 PAGES[st.session_state.current_page]()

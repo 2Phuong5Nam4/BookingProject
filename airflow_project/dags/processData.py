@@ -92,8 +92,8 @@ def AccommodationProcess(**kwargs):
         for _, row in accommodation_data.iterrows():
             insert_stmt = """
                 INSERT INTO "Accommodation" (acm_id, acm_name, acm_type, acm_star_rating, acm_amenities, 
-                                           acm_description, acm_customer_rating, acm_review_count, acm_address, 
-                                           acm_location, acm_lat, acm_long, acm_url)
+                                          acm_description, acm_customer_rating, acm_review_count, 
+                                          acm_location, acm_address, acm_lat, acm_long, acm_url)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (acm_id) DO UPDATE SET
                     acm_name = EXCLUDED.acm_name,
@@ -145,9 +145,9 @@ def DisciplinesProcess(**kwargs):
     with engine.connect() as conn:
         for _, row in disciplines_data.iterrows():
             insert_stmt = """
-                INSERT INTO "Disciplines" (dis_accommodation_id, dis_is_pet_allowed, dis_credit_card_required, 
-                                         dis_payment_methods, dis_smoking_allowed, dis_checkin_start, 
-                                         dis_checkin_end, dis_checkout_start, dis_checkout_end)
+                INSERT INTO "Disciplines" (dis_accommodation_id, dis_is_pet_allowed, dis_credit_card_required,
+                                        dis_payment_methods, dis_smoking_allowed, dis_checkin_start,
+                                        dis_checkin_end, dis_checkout_start, dis_checkout_end)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (dis_accommodation_id) DO UPDATE SET
                     dis_is_pet_allowed = EXCLUDED.dis_is_pet_allowed,
@@ -187,7 +187,8 @@ def RoomsProcess(**kwargs):
     with engine.connect() as conn:
         for _, row in rooms_data.iterrows():
             insert_stmt = """
-                INSERT INTO "Rooms" (rm_room_id, rm_accommodation_id, rm_name, rm_guests_number, rm_area, rm_bed_types)
+                INSERT INTO "Rooms" (rm_room_id, rm_accommodation_id, rm_name, rm_guests_number,
+                                   rm_area, rm_bed_types)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (rm_room_id, rm_accommodation_id) DO UPDATE SET
                     rm_name = EXCLUDED.rm_name,
@@ -242,6 +243,8 @@ def FeedBackProcess(**kwargs):
     pg_hook = PostgresHook(postgre_conn_id='postgres_default')
     engine = pg_hook.get_sqlalchemy_engine()
     # Retrieve each chunk
+    num_rows = 0
+    num_success = 0
     for i in range(num_chunks):
         chunk_key = f"comment_json_data_chunk_{i}"
         chunk = ti.xcom_pull(task_ids="push_json_comment_to_xcom", key=chunk_key)
@@ -251,7 +254,7 @@ def FeedBackProcess(**kwargs):
         # data = data.dropna(subset=['accommodationId', 'roomId'], how='any')
         data = data.drop_duplicates()
         data['reviewedDate'] = pd.to_datetime(data['reviewedDate'], unit='s', errors='coerce').dt.date
-
+        num_rows += data.shape[0]
 
         data['title'] = data['title'].apply(clean_text)
         data['positiveText'] = data['positiveText'].apply(clean_text)
@@ -277,7 +280,10 @@ def FeedBackProcess(**kwargs):
         with engine.connect() as conn:
             for _, row in feedback_data.iterrows():
                 insert_stmt = """
-                    INSERT INTO "Feedback" (fb_accommodation_id, fb_room_id, fb_reviewed_date, fb_language_used, fb_title, fb_positive, fb_negative, fb_num_nights, fb_nationality, fb_customer_type, fb_checkin_date, fb_scoring, fb_review_url)
+                    INSERT INTO "Feedback" (fb_accommodation_id, fb_room_id, fb_reviewed_date,
+                                         fb_language_used, fb_title, fb_positive, fb_negative,
+                                         fb_num_nights, fb_nationality, fb_customer_type,
+                                         fb_checkin_date, fb_scoring, fb_review_url)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (fb_room_id, fb_accommodation_id, fb_review_url) DO UPDATE SET
                         fb_language_used = EXCLUDED.fb_language_used,
@@ -299,6 +305,9 @@ def FeedBackProcess(**kwargs):
                     print(f"Caught InvalidColumnReference exception: {e}")
                 except Exception as e:
                     print(f"Caught a different exception: {e}")
-        # feedback_data.to_sql('Feedback', con=engine, if_exists='append', index=False)
+                else:
+                    num_success += 1
+                    print(f"Successfully inserted row: {num_success}")
 
     print("Data loaded successfully to Feedback table.")
+    print(f"Total rows: {num_rows}, successfully inserted: {num_success}")

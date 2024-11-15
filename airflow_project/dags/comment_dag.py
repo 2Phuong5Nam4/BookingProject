@@ -68,34 +68,34 @@ with DAG(
 ) as dag:
 
     # task request url from postgres database
-    get_hotel_info_task = PythonOperator(
-        task_id='get_hotel_info_from_postgres', 
-        python_callable=extract_data_from_postgres,
-        op_kwargs={'sql_query': 'SELECT acm_id, acm_location, acm_review_count from public."Accommodation"'},
-        provide_context=True,  # This passes the execution context (including the execution date) to the callable
-        dag=dag,
-    )
+    # get_hotel_info_task = PythonOperator(
+    #     task_id='get_hotel_info_from_postgres', 
+    #     python_callable=extract_data_from_postgres,
+    #     op_kwargs={'sql_query': 'SELECT acm_id, acm_location, acm_review_count from public."Accommodation"'},
+    #     provide_context=True,  # This passes the execution context (including the execution date) to the callable
+    #     dag=dag,
+    # )
 
-    save_url_task = PythonOperator(
-        task_id='save_hotel_info_to_file',
-        python_callable=save_hotel_info_to_file,
-        provide_context=True,  # This passes the execution context (including the execution date) to the callable
-        dag=dag,
-    )
+    # save_url_task = PythonOperator(
+    #     task_id='save_hotel_info_to_file',
+    #     python_callable=save_hotel_info_to_file,
+    #     provide_context=True,  # This passes the execution context (including the execution date) to the callable
+    #     dag=dag,
+    # )
 
 
-    task2 = BashOperator(
-        task_id='run_comment_spider',
-        # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
-        bash_command=f'cd /opt/airflow/booking && scrapy crawl comment -o /opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',
-        dag=dag,
-    )
+    # task2 = BashOperator(
+    #     task_id='run_comment_spider',
+    #     # cd /Users/mac/HCMUS/ItelligentAnalApp/python_scripts/airflow_temp/booking && scrapy crawl booking
+    #     bash_command=f'cd /opt/airflow/booking && scrapy crawl comment -o /opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',
+    #     dag=dag,
+    # )
 
 
     push_json_comment_task = PushJsonToXComOperator(
             
         task_id='push_json_comment_to_xcom',
-        file_path=f'/opt/airflow/booking/hotel_data/{CURRENT_DATE}-CommentItem.jl',  # Adjust the file path as needed
+        file_path=f'/opt/airflow/booking/hotel_data/2024-11-14-CommentItem.jl',  # Adjust the file path as needed
         xcom_key='comment_json_data',
         dag=dag,
     )
@@ -109,4 +109,4 @@ with DAG(
     )
     # task5
     # task pipeline
-    get_hotel_info_task >> save_url_task >> task2 >> push_json_comment_task >> process_feedback_task
+    push_json_comment_task >> process_feedback_task

@@ -65,5 +65,5 @@
 		fb_language_used VARCHAR,
 		fb_review_url VARCHAR,
 		PRIMARY KEY (fb_accommodation_id, fb_room_id, fb_review_url)
-		CONSTRAINT fk_feedback_rooms_id FOREIGN KEY (fb_accommodation_id, fb_room_id) REFERENCES "Rooms" (rm_room_id, rm_accommodation_id)
+		CONSTRAINT fk_feedback_rooms_id FOREIGN KEY (fb_accommodation_id, fb_room_id) REFERENCES "Rooms" (rm_accommodation_id, rm_room_id)
 	);
