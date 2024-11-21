@@ -45,7 +45,7 @@ def postgres_query(province=None, star_range=None, customer_rating=None, limit=1
         base += " WHERE " + " AND ".join(conditions)
     if limit is not None:
         base += f" LIMIT {limit};"
-    print(base)
+    # print(base)
     df = conn.query(base, ttl="10m")
     return df
 

@@ -1,0 +1,21 @@
+div[data-testid="stVerticalBlock"] div:has(div.fixed-header) {
+    position: sticky;
+    top: 2.875rem;
+    z-index: 999;
+    background-color: #fbfbfb;
+    border-bottom-color: #e6e6e6;
+}
+
+
+/* Style the radio buttons to look like tabs
+div.fixed-header div[data-testid="stRadio"] > div {
+    display: flex;
+    gap: 1em;
+} */
+
+div.fixed-header div[data-testid="stRadio"] label {
+    cursor: pointer;
+    padding: 0.5em 1em;
+    border-radius: 4px;
+}
+
