@@ -214,22 +214,35 @@ def show():
         filtered_df7 = df7[df7["acm_location"].str.contains(selected_locations, case=False, na=False)]
     else:
         filtered_df7 = df7
-        
+
     aggregated_df7 = (
         filtered_df7
-        .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
+        .melt(
+            id_vars=["fb_nationality"], 
+            value_vars=["pos_count", "neg_count"], 
+            var_name="review_type", 
+            value_name="review_count"
+        )
         .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
-        .sum()  
+        .sum()
     )
 
+    top10_nationalities = (aggregated_df7.groupby("fb_nationality")["review_count"].sum().nlargest(10).index)
+    aggregated_df7_top10 = aggregated_df7[aggregated_df7["fb_nationality"].isin(top10_nationalities)]
+
     fig7 = px.bar(
-        aggregated_df7,
+        aggregated_df7_top10,
         x="fb_nationality", 
         y="review_count",  
         color="review_type",
-        labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
-        title="Top Nationality with Number of reviews ",
+        labels={
+            "review_count": "Num of Reviews", 
+            "review_type": "Review type",
+            "fb_nationality": "Nationality"
+        },
+        title="Top 10 Nationalities with Number of Reviews",
         barmode="group"
     )
+
     st.title("Distribution of Reviews by Nationality")
     st.plotly_chart(fig7)
