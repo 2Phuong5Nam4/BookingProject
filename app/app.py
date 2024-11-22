@@ -7,21 +7,15 @@ from streamlit_option_menu import option_menu
 st.set_page_config(page_title="The Ramsey Highlights", layout="wide")
 
 # Add a big logo at the top of the sidebar
-st.sidebar.image("https://www.pixenli.com/image/fm0aEpMI", use_container_width=False)   
+st.sidebar.image("./static/isekai.png", use_container_width=False)   
 pg = st.navigation([st.Page("pages/ℹ️_Introduction.py"), st.Page("pages/📊_Dash_Board.py"), st.Page("pages/🌟_Recommender.py"), st.Page("pages/🤖_Chat_bot.py")])
 pg.run()
 
 st.logo(
-    "https://www.pixenli.com/image/fm0aEpMI",
+    "./static/isekai.png",
     link="https://streamlit.io/gallery",
-    icon_image="https://www.pixenli.com/image/fm0aEpMI",
+    icon_image="./static/isekai.png",
 )
-
-# Add a title to the sidebar
-st.sidebar.title("About")
-
-# Add some content to the sidebar
-st.sidebar.write("Nói j j đó về môn học và đồ án chẳng hạn.")
 
 ms = st.session_state
 if "themes" not in ms: 
@@ -99,9 +93,9 @@ with st.sidebar:
     btn_face = ms.themes["light"]["button_face"] if ms.themes["current_theme"] == "light" else ms.themes["dark"]["button_face"]
     # st.button(btn_face, on_click=ChangeTheme, use_container_width=True)
     
-    left, right = st.columns(2)
-    left.button(btn_face, on_click=ChangeTheme,use_container_width=True)
-    right.link_button("Repository", use_container_width=True, url="https://github.com/your-repo-url")
+    # left, right = st.columns(2)
+    # left.button(btn_face, on_click=ChangeTheme,use_container_width=True)
+    st.link_button("Repository", use_container_width=True, url="https://github.com/your-repo-url")
 
         
 

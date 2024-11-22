@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 # Kết nối tới database
 conn = psycopg2.connect(
-    host="172.17.0.1",
+    host="localhost",
     database="BookingProject",
     user="airflow",
     password="airflow"
