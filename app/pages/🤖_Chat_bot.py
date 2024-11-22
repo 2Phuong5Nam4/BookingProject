@@ -76,7 +76,7 @@ db_script = '''
 
 conn = st.connection('postgresql', type='sql')
 client = OpenAI(
-    api_key="AIzaSyBaFKxfQl9WAD3uJsRGiJJEoK2UY1k2iLg",
+    api_key=os.getenv('GEMINI_API_KEY'),
     base_url='https://generativelanguage.googleapis.com/v1beta/'
 )
 
@@ -85,7 +85,7 @@ tools = [
     'type': 'function',
     'function': {
       'name': 'generate_sql_query',
-      'description': f'Sinh câu lệnh SQL từ ngôn ngữ tự nhiên nếu cần thiết.',
+      'description': f'Sinh câu lệnh SQL từ ngôn ngữ tự nhiên nếu cần thiết (tên bảng trong script phải được đặt trong dấu ngoặc kép).',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -97,12 +97,12 @@ tools = [
             'type': 'string',
             'description': 'Câu mở đầu cho câu trả lời.'
           },
-          'sorry': {
+          'apology': {
             'type': 'string',
             'description': 'Đưa ra yêu cầu thử lại sau.'
           }
         },
-        'required': ['query', 'content', 'sorry']
+        'required': ['query', 'content', 'apology']
       },
     }
   }
@@ -112,9 +112,9 @@ def response_generator(messages):
     re_try = 3
     try_count = 0
     response = None
-    res = None
+    res = {'text': '', 'data': None}
 
-    reduced_messages = [{'role': m['role'], 'content': m['content']} for m in messages if m['role'] != 'assistant']
+    reduced_messages = [{'role': m['role'], 'content': m['content']} for m in messages if m['role'] != 'assistant'].copy()
 
     while try_count < re_try:
       response = client.chat.completions.create(
@@ -124,12 +124,19 @@ def response_generator(messages):
           tool_choice='auto'
       )
 
-      main_content = response.choices[0].message.content
-      function_call = response.choices[0].message.tool_calls
-      function_call = ast.literal_eval(function_call[0].function.arguments) if function_call != [] else None
+      print(response)
 
-      print(main_content)
-      print(function_call)
+      try:
+        main_content = response.choices[0].message.content
+        function_call = response.choices[0].message.tool_calls
+        function_call = ast.literal_eval(function_call[0].function.arguments) if function_call != [] else None
+      except Exception as e:
+        print(e)
+        try_count += 1
+        continue
+
+      # print(main_content)
+      # print(function_call)
 
       if main_content:
         res = {'text': main_content, 'data': None}
@@ -149,9 +156,10 @@ def response_generator(messages):
 
         except Exception as e:
           print(e)
+          reduced_messages.append({'role': 'assistant', 'content': f'Error: {e}\nĐôi khi script SQL không chính xác do thiếu dấu ngoặc kép trong tên bảng. Hãy kiểm tra lại script SQL.'})
           try_count += 1
           if try_count >= re_try:
-            res = {'text': function_call['sorry'], 'data': None}
+            res = {'text': function_call['apology'], 'data': None}
 
     for k, v in res.items():
       if k == 'text':
@@ -166,7 +174,8 @@ st.title("Simple chat")
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [
-       {'role': 'system', 'content': 'Bạn là một người trợ lý đang giúp người dùng truy vấn cơ sở dữ liệu về khách sạn thông qua cơ sở dữ liệu PostgreSQL. Tên bảng phải được đặt trong dấu ngoặc kép. Không được phép xóa hay thay đổi database. Nếu câu hỏi của người dùng không thể truy vấn trực tiếp từ cơ sở dữ liệu, hãy sử dụng công cụ sinh câu lệnh SQL từ ngôn ngữ tự nhiên. Nếu không có kết quả trả về, trả lời dựa trên script được cung cấp hoặc trả lời trực tiếp. Nếu không thể trả lời, hãy thông báo cho người dùng. Cấu trúc cơ sở dữ liệu PostgreSQL được cung cấp trong script:\n{db_script}. Database chỉ có 5 bảng: "Accommodation", "Rooms", "Bed_price", "Disciplines", "Feedback".'}
+      {'role': 'system', 'content': 'Bạn là một người trợ lý đang giúp người dùng truy vấn database về khách sạn được lưu bằng PostgreSQL. Nếu câu hỏi cần truy lấy thông tin từ database, hãy sử dụng công cụ sinh script SQL từ ngôn ngữ tự nhiên. Nếu câu hỏi liên quan đến cấu trúc của database, hãy dựa vào script cung cấp. Nếu câu hỏi không liên quan đến cơ sở dữ liệu, hãy trả lời người dùng rằng bạn không hỗ trợ. Không được phép xóa hay thay đổi database.'},
+      {'role': 'system', 'content': f'Database chỉ có 5 bảng: "Accommodation", "Rooms", "Bed_price", "Disciplines", "Feedback". Hãy nhớ kỹ script tạo database:\n{db_script}.'}
     ]
 
 # Display chat messages from history on app rerun
