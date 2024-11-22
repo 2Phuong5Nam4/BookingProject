@@ -497,18 +497,29 @@ def show():
             
         aggregated_df7 = (
             filtered_df7
-            .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
+              .melt(
+                id_vars=["fb_nationality"], 
+                value_vars=["pos_count", "neg_count"], 
+                var_name="review_type", 
+                value_name="review_count"
+            )
             .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
             .sum()  
         )
+        top10_nationalities = (aggregated_df7.groupby("fb_nationality")["review_count"].sum().nlargest(10).index)
+        aggregated_df7_top10 = aggregated_df7[aggregated_df7["fb_nationality"].isin(top10_nationalities)]
 
         fig7 = px.bar(
-            aggregated_df7,
+            aggregated_df7_top10,
             x="fb_nationality", 
             y="review_count",  
             color="review_type",
-            labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
-            title="Top Nationality with Number of reviews ",
+            labels={
+                "review_count": "Num of Reviews", 
+                "review_type": "Review type",
+                "fb_nationality": "Nationality"
+            },
+            title="Top 10 Nationalities with Number of Reviews",
             barmode="group"
         )
         st.markdown("### Phân bổ số lượng đánh giá theo quốc tịch")
@@ -540,7 +551,7 @@ def show():
         color_discrete_sequence=px.colors.qualitative.Set2,
         text_auto=True
     )
-    st.title("Popular room")
+    st.markdown("#### Những Loại Phòng Phổ Biến")
     st.plotly_chart(fig5)
 
     # Fig 6: Review trend by week
@@ -569,7 +580,7 @@ def show():
         title="The number of reviews increases week by week",
         labels={"week": "Week", "review_count": "Num of reviews", "year": "Year"}
     )
-    st.title("Review trends")
+    st.markdown("#### Xu Hướng Review")
     st.plotly_chart(fig6)
 
 
