@@ -253,59 +253,74 @@ def show():
 
     # Map visualization
     with col2:
-        with st.container():
-            st.subheader("Bản đồ thông tin tổng quan các nơi")
+        st.subheader("Bản đồ thông tin tổng quan các nơi")
 
-            accommodation_summary = df.groupby('acm_location').agg(
-                total_accommodations=('acm_location', 'size'),
-                average_rating=('acm_customer_rating', 'mean')
-            ).reset_index()
+        provinces = ['Tất cả'] + df['acm_location'].unique().tolist()
+        selected_province = st.selectbox("Chọn tỉnh thành", provinces)
 
-            accommodation_summary['tooltip'] = (
-                accommodation_summary['acm_location'] + '<br>' +
-                'Tổng số chỗ ở: ' + accommodation_summary['total_accommodations'].astype(str) + '<br>' +
-                'Đánh giá trung bình của khách: ' + accommodation_summary['average_rating'].round(2).astype(str)
-            )
-            
-            fig = px.choropleth_mapbox(
-                accommodation_summary,
-                geojson=geo_data,
-                locations='acm_location',
-                featureidkey='properties.ten_tinh',
-                color='total_accommodations',
-                hover_name='tooltip',
-                hover_data={'acm_location': False, 'total_accommodations': False},
-                color_continuous_scale="OrRd",
-                range_color=(
-                    accommodation_summary['total_accommodations'].min(),
-                    accommodation_summary['total_accommodations'].max()
-                ),
-                mapbox_style="carto-positron",
-                center={"lat": 16.0, "lon": 108.0},
-                zoom=6,
-                opacity=0.7,
-                labels={'total_accommodations': 'Số lượng chỗ ở'}
-            )
+        if selected_province == 'Tất cả':
+            filtered_data = df
+            center = {"lat": 16.0, "lon": 108.0}
+            zoom = 6
+        else:
+            filtered_data = df[df['acm_location'] == selected_province]
+            if not filtered_data.empty:
+                center = {"lat": filtered_data['acm_lat'].mean(), "lon": filtered_data['acm_long'].mean()}
+                zoom = 9
+            else:
+                center = {"lat": 16.0, "lon": 108.0}
+                zoom = 6
 
-            fig.add_trace(go.Scattermapbox(
-                lat=df['acm_lat'],
-                lon=df['acm_long'],
-                mode='markers',
-                marker=go.scattermapbox.Marker(
-                    size=8,
-                    color='green'
-                ),
-                text=df['acm_name'],
-                hoverinfo='text'
-            ))
+        accommodation_summary = filtered_data.groupby('acm_location').agg(
+            total_accommodations=('acm_location', 'size'),
+            average_rating=('acm_customer_rating', 'mean')
+        ).reset_index()
 
-            fig.update_layout(
-                margin={"r": 0,"t": 0,"l": 0,"b": 0},
-                height=550
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
+        accommodation_summary['tooltip'] = (
+            accommodation_summary['acm_location'] + '<br>' +
+            'Tổng số chỗ ở: ' + accommodation_summary['total_accommodations'].astype(str) + '<br>' +
+            'Đánh giá trung bình của khách: ' + accommodation_summary['average_rating'].round(2).astype(str)
+        )
         
+        fig = px.choropleth_mapbox(
+            accommodation_summary,
+            geojson=geo_data,
+            locations='acm_location',
+            featureidkey='properties.ten_tinh',
+            color='total_accommodations',
+            hover_name='tooltip',
+            hover_data={'acm_location': False, 'total_accommodations': False},
+            color_continuous_scale="OrRd",
+            range_color=(
+                accommodation_summary['total_accommodations'].min(),
+                accommodation_summary['total_accommodations'].max()
+            ),
+            mapbox_style="carto-positron",
+            center=center,
+            zoom=zoom,
+            opacity=0.7,
+            labels={'total_accommodations': 'Số lượng chỗ ở'}
+        )
+
+        fig.add_trace(go.Scattermapbox(
+            lat=filtered_data['acm_lat'],
+            lon=filtered_data['acm_long'],
+            mode='markers',
+            marker=go.scattermapbox.Marker(
+                size=8,
+                color='green'
+            ),
+            text=df['acm_name'],
+            hoverinfo='text'
+        ))
+
+        fig.update_layout(
+            margin={"r": 0,"t": 0,"l": 0,"b": 0},
+            height=550
+        )
+
+        st.plotly_chart(fig, use_container_height=True)
+    
 
 
         
