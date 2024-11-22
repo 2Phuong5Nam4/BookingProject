@@ -1,16 +1,19 @@
 
-
 import streamlit as st
 import pandas as pd
 import psycopg2
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import requests
+from bs4 import BeautifulSoup
+from io import BytesIO
+from IPython.display import Image
 # Kết nối tới database
 conn = psycopg2.connect(
     host="localhost",
     database="BookingProject",
-    user="airflow",
-    password="airflow"
+    user="postgres",
+    password="postgres"
 )
 
 # Áp dụng CSS
@@ -115,9 +118,9 @@ with col2:
         label_visibility="collapsed",
         key=f"selectbox_3"
     )
+user_input_address = st.text_input("Specific address: ")
+user_input_others = st.text_input("Other things you want (amentities, price per night,...): ")
 
-user_input = st.text_input("Other things you want:")
-string = option1 + option2 + str(option3) + user_input
 
 
 crawl_date = '2024-11-14'
@@ -126,10 +129,10 @@ query = """
     FROM public."Accommodation" as ac
     JOIN public."Bed_price" as bp ON ac.acm_id = bp.bp_accommodation_id
     JOIN public."Rooms" AS rm ON rm.rm_accommodation_id = ac.acm_id
-    WHERE ac.acm_location = %s AND bp.bp_future_interval = %s
+    WHERE ac.acm_address = %s AND bp.bp_future_interval = %s
 """
 df = pd.read_sql(query, conn, params=(option2, option3))
-new_df = df[['acm_id', 'acm_name', 'acm_amenities',
+new_df = df[['acm_id', 'acm_name', 'acm_amenities' ,'acm_address',
              'acm_description', 'acm_location', 'rm_name', 'rm_guests_number',
              'rm_bed_types',
              'bp_price', 'acm_url']]
@@ -140,9 +143,8 @@ df_copy['rm_guests_number'] = df_copy['rm_guests_number'].astype(str) + " people
 df_copy['bp_price'] = df_copy['bp_price'].astype(str) + " VND"
 df_copy["acm_amenities"] = df_copy["acm_amenities"].str.replace("[", "").str.replace("]", "").str.replace("'", "")
 df_copy["rm_bed_types"] = df_copy["rm_bed_types"].str.replace("[", "").str.replace("]", "").str.replace("'", "")
-df_copy['room_description'] = "Suitable for " + df_copy['rm_guests_number'] + ' with Bed type: ' + df_copy[
-    'rm_bed_types'] + '. Price: ' + df_copy['bp_price'] + ' per night.'
-df_copy = df_copy.drop(columns=['rm_guests_number', 'rm_bed_types', 'bp_price', 'acm_location'])
+df_copy['room_description'] = df_copy['acm_address'] + "Suitable for " + df_copy['rm_guests_number'] + ' with Bed type: ' + df_copy['rm_bed_types'] + '. Price: ' + df_copy['bp_price'] + ' per night.'
+df_copy = df_copy.drop(columns=['rm_guests_number', 'rm_bed_types', 'bp_price', 'acm_location' ,'acm_address'])
 df_copy = df_copy.groupby('acm_id').agg({
     'acm_name': 'first',
     'acm_amenities': 'first',
@@ -161,6 +163,7 @@ temp_df['combined'] = (
         temp_df['rm_name'] + " " +
         temp_df['room_description']
 )
+user_input = user_input_address + user_input_others
 user_input = user_input.lower()
 vectorizer = TfidfVectorizer(stop_words='english')
 user_input_vector = vectorizer.fit_transform([user_input] + temp_df['combined'].tolist())
@@ -169,10 +172,31 @@ df_copy['similarity'] = cosine_similarities.flatten()
 recommended_hotels = df_copy.sort_values(by='similarity', ascending=False)
 recommended_hotels = recommended_hotels[['acm_name', 'acm_url']]
 recommended_hotels.rename(columns={
-    'acm_name':'Accommodation',
-    'acm_url':'Link to accommodation'
+    'acm_name' :'Accommodation',
+    'acm_url' :'Link to accommodation'
 }
 , inplace=True)
 # Hiển thị kết quả trong bảng đẹp
 st.markdown('<div class="highlight-box">Recommended Hotels:</div>', unsafe_allow_html=True)
-st.table(recommended_hotels.head(5))
+
+result = recommended_hotels.head(5)
+
+# gửi request đi rồi parse lấy url ảnh từng chỗ ở
+img_urls = []
+for url in result['Link to accommodation']:
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+
+    img_tags = soup.find_all('img')
+    temp = img_tags.pop(0)['src']
+    img_urls.append(temp)
+
+# thêm râu ria cho display markdown được...
+for index,url in enumerate(img_urls):
+    img_urls[index] = '<img src="'+url+'/image.jpg" width="100">'
+
+result['Image'] = img_urls
+result = result[['Image','Accommodation','Link to accommodation']]
+html_table = result.to_html(escape=False)
+st.markdown(html_table, unsafe_allow_html=True)
