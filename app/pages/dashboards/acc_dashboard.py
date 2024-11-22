@@ -1,6 +1,10 @@
-import psycopg2
+import streamlit as st
 import pandas as pd
-locations = ["All", "Hạ Long", "Hội An", "Thừa Thiên Huế", "Nha Trang", "Đà Lạt"]
+import psycopg2
+import plotly.express as px
+import numpy as np
+
+locations = ["All", "Hạ Long", "Hội An", "Thừa Thiên Huế", "Nha Trang", "Đà Lạt", "Vũng Tàu", "Đà Nẵng", "Phú Quốc", "Sapa", "Phong Nha"]
 
 def get_data(query):
     conn = psycopg2.connect(
@@ -18,11 +22,16 @@ query5 = """
 WITH room_popularity AS (
     SELECT 
         CASE 
-            WHEN acm.acm_location LIKE '%Hạ Long%' THEN 'Hạ Long'
-            WHEN acm.acm_location LIKE '%Hội An%' THEN 'Hội An'
-            WHEN acm.acm_location LIKE '%Thừa Thiên Huế%' THEN 'Thừa Thiên Huế'
+            WHEN acm.acm_location LIKE '%Ha Long%' THEN 'Hạ Long'
+            WHEN acm.acm_location LIKE '%Hoi An%' THEN 'Hội An'
+            WHEN acm.acm_location LIKE '%Thua Thien Hue%' THEN 'Thừa Thiên Huế'
             WHEN acm.acm_location LIKE '%Nha Trang%' THEN 'Nha Trang'
-            WHEN acm.acm_location LIKE '%Đà Lạt%' THEN 'Đà Lạt'
+            WHEN acm.acm_location LIKE '%Da Lat%' THEN 'Đà Lạt'
+            WHEN acm.acm_location LIKE '%Vung Tau%' THEN 'Vũng Tàu'
+            WHEN acm.acm_location LIKE '%Da Nang%' THEN 'Đà Nẵng'
+            WHEN acm.acm_location LIKE '%Phu Quoc%' THEN 'Phú Quốc'
+            WHEN acm.acm_location LIKE '%Sapa%' THEN 'Sapa'
+            WHEN acm.acm_location LIKE '%Phong Nha%' THEN 'Phong Nha'
             ELSE 'Other'
         END AS filtered_location,
         rm.rm_name,
@@ -34,7 +43,7 @@ WITH room_popularity AS (
     ON 
         rm.rm_accommodation_id = acm.acm_id
     WHERE 
-        acm.acm_location SIMILAR TO '%(' || 'Hạ Long|Hội An|Thừa Thiên Huế|Nha Trang|Đà Lạt' || ')%'
+        acm.acm_location SIMILAR TO '%(' || 'Ha Long|Hoi An|Thua Thien Hue|Nha Trang|Da Lat|Vung Tau|Da Nang|Phu Quoc|Sapa|Phong Nha' || ')%'
     GROUP BY 
         filtered_location, rm.rm_name
 )
@@ -46,7 +55,6 @@ FROM
     room_popularity
 ORDER BY 
     acm_location, count DESC;
-
 """
 
 query6 = """
@@ -61,7 +69,7 @@ WITH filtered_feedback AS (
     ON 
         fb.fb_accommodation_id = acm.acm_id
     WHERE 
-        acm.acm_location SIMILAR TO '%(' || 'Hạ Long|Hội An|Thừa Thiên Huế|Nha Trang|Đà Lạt' || ')%'
+        acm.acm_location SIMILAR TO '%(' || 'Ha Long|Hoi An|Thua Thien Hue|Nha Trang|Da Lat' || ')%'
 ),
 feedback_with_weekly_info AS (
     SELECT 
@@ -105,7 +113,7 @@ WITH feedback_with_flags AS (
     ON 
         fb.fb_accommodation_id = acm.acm_id
     WHERE 
-         acm.acm_location SIMILAR TO '%(' || 'Hạ Long|Hội An|Thừa Thiên Huế|Nha Trang|Đà Lạt' || ')%'
+         acm.acm_location SIMILAR TO '%(' || 'Ha Long|Hoi An|Thua Thien Hue|Nha Trang|Da Lat' || ')%'
 ),
 feedback_summary AS (
     SELECT 
@@ -141,12 +149,6 @@ FROM
 ORDER BY 
     pos_count DESC, neg_count DESC;
 """
-# --------
-
-df5 = get_data(query5)
-df6 = get_data(query6)
-df7= get_data(query7)
-
 
 def show():
     import streamlit as st
@@ -207,7 +209,12 @@ def show():
         'Da Lat, Lam Dong, Vietnam': 'Lâm Đồng',
         'Thua Thien Hue, Vietnam': 'Thừa Thiên Huế',
         'Nha Trang, Khanh Hoa, Vietnam': 'Khánh Hòa',
-        'Ha Long, Quang Ninh, Vietnam': 'Quảng Ninh'
+        'Ha Long, Quang Ninh, Vietnam': 'Quảng Ninh',
+        'Vung Tau, Ba Ria - Vung Tau, Vietnam': 'Bà Rịa - Vũng Tàu',
+        'Da Nang, Vietnam': 'Đà Nẵng',
+        'Phu Quoc, Kien Giang , Vietnam': 'Kiên Giang',
+        'Sapa, Lao Cai, Vietnam': 'Lào Cai',
+        'Phong Nha, Quang Binh, Vietnam': 'Quảng Bình'
     }
 
     df['acm_location'] = df['acm_location'].replace(replace_map)
@@ -466,11 +473,20 @@ def show():
         "Choose a location:", locations, index=0 
     )
 
-    # Fig 5:
+    # Fig 5: Popular room
+    df5 = get_data(query5)
     if selected_locations != "All":
         filtered_df5 = df5[df5["acm_location"].str.contains(selected_locations, case=False, na=False)]
     else:
         filtered_df5 = df5
+
+    filtered_df5 = (
+        filtered_df5
+        .sort_values("count", ascending=False)  
+        .groupby("acm_location")  
+        .head(10)  
+        .reset_index(drop=True)  
+    )
 
     fig5 = px.bar(
         filtered_df5, 
@@ -480,16 +496,16 @@ def show():
         title="Top 10 Popular Rooms by Area",
         labels={"rm_name": "Room name", "count": "Num of rooms"},
         category_orders={"acm_location": filtered_df5['acm_location'].unique().tolist()},
-        color_discrete_sequence=px.colors.qualitative.Set2
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        text_auto=True
     )
     st.title("Popular room")
     st.plotly_chart(fig5)
 
-    # Fig 6:
+    # Fig 6: Review trend by week
+    df6 = get_data(query6)
     df6["year"] = df6["year"].astype(int).astype(str)  
-    df6["week"] = df6["week"].astype(int).astype(str)  
-    df6["day"] = "1"  
-    df6["week_start"] = pd.to_datetime(df6["year"] + " " + df6["week"] + " " + df6["day"], format="%Y %W %w")
+    df6["week"] = df6["week"].astype(int) 
 
     if selected_locations != "All":
         filtered_df6 = df6[df6["acm_location"].str.contains(selected_locations, case=False, na=False)]
@@ -506,33 +522,37 @@ def show():
 
     fig6 = px.line(
         filtered_df6, 
-        x="week_start", 
+        x="week", 
         y="review_count", 
         color="year",
         title="The number of reviews increases week by week",
-        labels={"week_start": "Week", "review_count": "Num of reviews", "year": "Year"}
+        labels={"week": "Week", "review_count": "Num of reviews", "year": "Year"}
     )
     st.title("Review trends")
     st.plotly_chart(fig6)
 
-    # Fig 7
+    # Fig 7: Distribution of reviews
+    df7= get_data(query7)
     if selected_locations != "All":
         filtered_df7 = df7[df7["acm_location"].str.contains(selected_locations, case=False, na=False)]
     else:
         filtered_df7 = df7
+        
+    aggregated_df7 = (
+        filtered_df7
+        .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
+        .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
+        .sum()  
+    )
 
     fig7 = px.bar(
-        filtered_df7,
+        aggregated_df7,
         x="fb_nationality", 
-        y=["pos_count", "neg_count"],  
-        color_discrete_map={"pos_count": "blue", "neg_count": "red"},  
-        labels={
-            "value": "Num of reviews",
-            "variable": "Review type",
-            "fb_nationality": "Nationality"
-        },
-        title="Distribution of positive and negative reviews by nationality",
-        barmode="group"  
+        y="review_count",  
+        color="review_type",
+        labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
+        title="Top Nationality with Number of reviews ",
+        barmode="group"
     )
     st.title("Distribution of Reviews by Nationality")
     st.plotly_chart(fig7)
