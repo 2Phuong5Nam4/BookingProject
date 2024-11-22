@@ -20,7 +20,7 @@ def on_change(key):
 
 # Initialize session state if not already initialized
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = "Price Dashboard"
+    st.session_state.current_page = "Accommodation Dashboard"
 
 # Set page configura
 # Title of the dashboard

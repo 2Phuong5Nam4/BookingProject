@@ -76,18 +76,14 @@ def postgres_query_line_chart(location=None, type=None, star_range=None, custome
         conditions.append(f"acm.acm_type = '{type}'")
 
     if star_range is not None:
-        conditions.append(f"acm.acm_star_rating BETWEEN {
-                          star_range[0]} AND {star_range[1]}")
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
 
     if customer_rating is not None:
-        conditions.append(f"acm.acm_customer_rating BETWEEN {
-                          customer_rating[0]} AND {customer_rating[1]}")
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
     if future_interval is not None:
-        conditions.append(f"bp.bp_future_interval BETWEEN {
-                          future_interval[0]} AND {future_interval[1]}")
+        conditions.append(f"bp.bp_future_interval BETWEEN {future_interval[0]} AND {future_interval[1]}")
     if guests_number is not None:
-        conditions.append(f"rm.rm_guests_number BETWEEN {
-                          guests_number[0]} AND {guests_number[1]}")
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
     # if review_count is not None:
         # conditions.append(f"acm.acm_review_count BETWEEN {review_count[0]} AND {review_count[1]}")
     if conditions:
@@ -114,14 +110,11 @@ def postgres_query_bar_chart(location=None, type=None, star_range=None, customer
     if type is not None and type != "All":
         conditions.append(f"acm.acm_type = '{type}'")
     if star_range is not None:
-        conditions.append(f"acm.acm_star_rating BETWEEN {
-                          star_range[0]} AND {star_range[1]}")
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
     if customer_rating is not None:
-        conditions.append(f"acm.acm_customer_rating BETWEEN {
-                          customer_rating[0]} AND {customer_rating[1]}")
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
     if guests_number is not None:
-        conditions.append(f"rm.rm_guests_number BETWEEN {
-                          guests_number[0]} AND {guests_number[1]}")
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
     if checkin_date is not None:
         conditions.append(f"bp_checkin_date = '{checkin_date}'")
     # if review_count is not None:
