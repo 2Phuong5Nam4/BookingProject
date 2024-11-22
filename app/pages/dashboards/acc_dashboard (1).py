@@ -50,7 +50,6 @@ FROM
     room_popularity
 ORDER BY 
     acm_location, count DESC;
-
 """
 
 query6 = """
@@ -146,49 +145,25 @@ ORDER BY
     pos_count DESC, neg_count DESC;
 """
 # --------
-
-df5 = get_data(query5)
-df6 = get_data(query6)
-df7= get_data(query7)
-
 def show():
-    '''# Sample data
-    np.random.seed(42)
-    df = pd.DataFrame({
-        'Category': ['A', 'B', 'C', 'D', 'E'],
-        'Value': np.random.randint(1, 100, 5),
-        'Date': pd.date_range(start='1/1/2023', periods=5)
-    })
-
-    # Create columns for grid layout
-    col1, col2 = st.columns(2)
-
-    # Line Chart
-    with col1:
-        st.subheader("Line Chart")
-        fig_line = px.line(df, x='Date', y='Value', title='Value Over Time')
-        st.plotly_chart(fig_line)
-
-    # Bar Chart
-    with col2:
-        st.subheader("Bar Chart")
-        fig_bar = px.bar(df, x='Category', y='Value', title='Value by Category')
-        st.plotly_chart(fig_bar)
-
-    # Pie Chart
-    with col1:
-        st.subheader("Pie Chart")
-        fig_pie = px.pie(df, names='Category', values='Value', title='Value Distribution by Category')
-        st.plotly_chart(fig_pie)'''
     selected_locations = st.selectbox(
         "Choose a location:", locations, index=0 
     )
 
-    # Fig 5:
+    # Fig 5: Popular room
+    df5 = get_data(query5)
     if selected_locations != "All":
         filtered_df5 = df5[df5["acm_location"].str.contains(selected_locations, case=False, na=False)]
     else:
         filtered_df5 = df5
+
+    filtered_df5 = (
+        filtered_df5
+        .sort_values("count", ascending=False)  
+        .groupby("acm_location")  
+        .head(10)  
+        .reset_index(drop=True)  
+    )
 
     fig5 = px.bar(
         filtered_df5, 
@@ -198,16 +173,16 @@ def show():
         title="Top 10 Popular Rooms by Area",
         labels={"rm_name": "Room name", "count": "Num of rooms"},
         category_orders={"acm_location": filtered_df5['acm_location'].unique().tolist()},
-        color_discrete_sequence=px.colors.qualitative.Set2
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        text_auto=True
     )
     st.title("Popular room")
     st.plotly_chart(fig5)
 
-    # Fig 6:
+    # Fig 6: Review trend by week
+    df6 = get_data(query6)
     df6["year"] = df6["year"].astype(int).astype(str)  
-    df6["week"] = df6["week"].astype(int).astype(str)  
-    df6["day"] = "1"  
-    df6["week_start"] = pd.to_datetime(df6["year"] + " " + df6["week"] + " " + df6["day"], format="%Y %W %w")
+    df6["week"] = df6["week"].astype(int) 
 
     if selected_locations != "All":
         filtered_df6 = df6[df6["acm_location"].str.contains(selected_locations, case=False, na=False)]
@@ -224,35 +199,37 @@ def show():
 
     fig6 = px.line(
         filtered_df6, 
-        x="week_start", 
+        x="week", 
         y="review_count", 
         color="year",
         title="The number of reviews increases week by week",
-        labels={"week_start": "Week", "review_count": "Num of reviews", "year": "Year"}
+        labels={"week": "Week", "review_count": "Num of reviews", "year": "Year"}
     )
     st.title("Review trends")
     st.plotly_chart(fig6)
 
-    # Fig 7
+    # Fig 7: Distribution of reviews
+    df7= get_data(query7)
     if selected_locations != "All":
         filtered_df7 = df7[df7["acm_location"].str.contains(selected_locations, case=False, na=False)]
     else:
         filtered_df7 = df7
+        
+    aggregated_df7 = (
+        filtered_df7
+        .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
+        .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
+        .sum()  
+    )
 
     fig7 = px.bar(
-        filtered_df7,
+        aggregated_df7,
         x="fb_nationality", 
-        y=["pos_count", "neg_count"],  
-        color_discrete_map={"pos_count": "blue", "neg_count": "red"},  
-        labels={
-            "value": "Num of reviews",
-            "variable": "Review type",
-            "fb_nationality": "Nationality"
-        },
-        title="Distribution of positive and negative reviews by nationality",
-        barmode="group"  
+        y="review_count",  
+        color="review_type",
+        labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
+        title="Top Nationality with Number of reviews ",
+        barmode="group"
     )
     st.title("Distribution of Reviews by Nationality")
     st.plotly_chart(fig7)
-
-    
