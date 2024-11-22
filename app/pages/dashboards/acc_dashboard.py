@@ -252,7 +252,7 @@ def show():
     geo_data = load_geojson()
 
     # Map visualization
-    with col1:
+    with col2:
         with st.container():
             st.subheader("Bản đồ thông tin tổng quan các nơi")
 
@@ -306,64 +306,10 @@ def show():
 
             st.plotly_chart(fig, use_container_width=True)
         
-        with st.container():
-            st.markdown("### Tỷ lệ phân bổ các loại hình")
-
-            def generate_tooltip_info(df):
-                total_accommodations = len(df)
-                tooltip_info = df.groupby('acm_type').agg(
-                    count=('acm_type', 'size'),
-                    avg_price=('average_price', 'mean'),
-                    max_price=('highest_price', 'max'),
-                    min_price=('lowest_price', 'min')
-                ).reset_index()
-                tooltip_info['distribution_ratio'] = (tooltip_info['count'] / total_accommodations) * 100
-                return tooltip_info
-
-            col1_subcol1, col1_subcol2 = st.columns([0.8, 0.2])
-
-            with col1_subcol2:
-                province_options = df['acm_location'].unique().tolist()
-                selected_provinces = []
-                for province in province_options:
-                    if st.checkbox(province):
-                        selected_provinces.append(province)
-
-                if selected_provinces:
-                    filtered_df = df[df['acm_location'].isin(selected_provinces)]
-                else:
-                    filtered_df = df
-
-            with col1_subcol1:
-                pie_data = generate_tooltip_info(filtered_df)
-                norm = Normalize(vmin=pie_data['count'].min(), vmax=pie_data['count'].max())
-                colors = [to_hex(cm.Reds(norm(value))) for value in pie_data['count']]
-
-                fig = go.Figure(data=[go.Pie(
-                    labels=pie_data['acm_type'],
-                    values=pie_data['count'],
-                    hovertemplate=(
-                        "<span style='text-align: left; display: block;'>"
-                        "<b>Loại hình: %{label}</b><br>"
-                        "Số lượng: %{value}<br>"
-                        "Giá trung bình: %{customdata:.2f}"
-                        "</span>"
-                    ),
-                    textinfo='percent',
-                    textposition='inside',
-                    marker=dict(colors=colors),
-                    customdata=pie_data['avg_price']
-                )])
-
-                fig.update_layout(
-                    margin=dict(t=0, b=0, l=0, r=0),
-                    showlegend=False
-                )
-                st.plotly_chart(fig, use_container_width=True)
 
 
         
-    with col2:
+    with col1:
         # Remarkable information
         with st.container():
             st.markdown("### Thông tin nổi bật")
@@ -467,11 +413,91 @@ def show():
         
             st.markdown("#### Phân bổ quốc tịch khách hàng")
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    col3, col4 = st.columns([0.4, 0.6])
+    with col3:
+        st.markdown("### Tỷ lệ phân bổ các loại hình")
 
+        def generate_tooltip_info(df):
+            total_accommodations = len(df)
+            tooltip_info = df.groupby('acm_type').agg(
+                count=('acm_type', 'size'),
+                avg_price=('average_price', 'mean'),
+                max_price=('highest_price', 'max'),
+                min_price=('lowest_price', 'min')
+            ).reset_index()
+            tooltip_info['distribution_ratio'] = (tooltip_info['count'] / total_accommodations) * 100
+            return tooltip_info
 
+        col1_subcol1, col1_subcol2 = st.columns([0.8, 0.2])
+
+        with col1_subcol2:
+            province_options = df['acm_location'].unique().tolist()
+            selected_provinces = []
+            for province in province_options:
+                if st.checkbox(province):
+                    selected_provinces.append(province)
+
+            if selected_provinces:
+                filtered_df = df[df['acm_location'].isin(selected_provinces)]
+            else:
+                filtered_df = df
+
+        with col1_subcol1:
+            pie_data = generate_tooltip_info(filtered_df)
+            norm = Normalize(vmin=pie_data['count'].min(), vmax=pie_data['count'].max())
+            colors = [to_hex(cm.Reds(norm(value))) for value in pie_data['count']]
+
+            fig = go.Figure(data=[go.Pie(
+                labels=pie_data['acm_type'],
+                values=pie_data['count'],
+                hovertemplate=(
+                    "<span style='text-align: left; display: block;'>"
+                    "<b>Loại hình: %{label}</b><br>"
+                    "Số lượng: %{value}<br>"
+                    "Giá trung bình: %{customdata:.2f}"
+                    "</span>"
+                ),
+                textinfo='percent',
+                textposition='inside',
+                marker=dict(colors=colors),
+                customdata=pie_data['avg_price']
+            )])
+
+            fig.update_layout(
+                margin=dict(t=0, b=0, l=0, r=0),
+                showlegend=False
+            )
+            st.plotly_chart(fig, use_container_width=True)
     selected_locations = st.selectbox(
         "Choose a location:", locations, index=0 
     )
+
+        # Fig 7: Distribution of reviews
+    with col4:
+        df7= get_data(query7)
+        if selected_locations != "All":
+            filtered_df7 = df7[df7["acm_location"].str.contains(selected_locations, case=False, na=False)]
+        else:
+            filtered_df7 = df7
+            
+        aggregated_df7 = (
+            filtered_df7
+            .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
+            .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
+            .sum()  
+        )
+
+        fig7 = px.bar(
+            aggregated_df7,
+            x="fb_nationality", 
+            y="review_count",  
+            color="review_type",
+            labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
+            title="Top Nationality with Number of reviews ",
+            barmode="group"
+        )
+        st.markdown("### Phân bổ số lượng đánh giá theo quốc tịch")
+        st.plotly_chart(fig7)
 
     # Fig 5: Popular room
     df5 = get_data(query5)
@@ -531,28 +557,4 @@ def show():
     st.title("Review trends")
     st.plotly_chart(fig6)
 
-    # Fig 7: Distribution of reviews
-    df7= get_data(query7)
-    if selected_locations != "All":
-        filtered_df7 = df7[df7["acm_location"].str.contains(selected_locations, case=False, na=False)]
-    else:
-        filtered_df7 = df7
-        
-    aggregated_df7 = (
-        filtered_df7
-        .melt(id_vars=["fb_nationality"], value_vars=["pos_count", "neg_count"], var_name="review_type", value_name="review_count")
-        .groupby(["fb_nationality", "review_type"], as_index=False)["review_count"]
-        .sum()  
-    )
 
-    fig7 = px.bar(
-        aggregated_df7,
-        x="fb_nationality", 
-        y="review_count",  
-        color="review_type",
-        labels={"review_count": "Num of Reviews", "review_type": "Review type","fb_nationality": "Nationality"},
-        title="Top Nationality with Number of reviews ",
-        barmode="group"
-    )
-    st.title("Distribution of Reviews by Nationality")
-    st.plotly_chart(fig7)
