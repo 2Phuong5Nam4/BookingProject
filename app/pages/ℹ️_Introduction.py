@@ -29,7 +29,7 @@ st.markdown("The goal of this project is to analyze hotel booking data from a po
 st.header("Team Members")
 team_members = pd.DataFrame({
     'Name': ['Nguyen Phuong Nam', 'Nguyen Gia Phuc', 'Tran Dinh Nhat Tri', 'Nguyen Quoc Hung', 'Chau Quy Duong', 'Vo Minh Khue'],
-    'ID': ['21120504', '21120539', '21120576', '21120464', '21120436', '21120486']
+    'ID': ['21120504', '21120529', '21120576', '21120464', '21120436', '21120486']
 })
 st.table(team_members)
 

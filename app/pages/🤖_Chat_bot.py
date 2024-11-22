@@ -85,7 +85,7 @@ tools = [
     'type': 'function',
     'function': {
       'name': 'generate_sql_query',
-      'description': f'Sinh câu lệnh SQL từ ngôn ngữ tự nhiên nếu cần thiết (tên bảng trong script phải được đặt trong dấu ngoặc kép).',
+      'description': f'Sinh câu lệnh SQL từ ngôn ngữ tự nhiên nếu cần thiết. Tên table trong script phải được đặt trong dấu nháy kép (quotation marks) và chuỗi nằm trong dấu nháy đơn (single quotes).',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -109,7 +109,7 @@ tools = [
 ]
 
 def response_generator(messages):
-    re_try = 3
+    re_try = 5
     try_count = 0
     response = None
     res = {'text': '', 'data': None}
@@ -130,20 +130,19 @@ def response_generator(messages):
         main_content = response.choices[0].message.content
         function_call = response.choices[0].message.tool_calls
         function_call = ast.literal_eval(function_call[0].function.arguments) if function_call != [] else None
+        if (main_content is None or main_content == '') and function_call is None:
+          try_count += 1
+          continue
       except Exception as e:
-        print(e)
         try_count += 1
         continue
-
-      # print(main_content)
-      # print(function_call)
 
       if main_content:
         res = {'text': main_content, 'data': None}
         break
       else:
-        content = function_call['content']
-        query = function_call['query'].replace('\n', '')
+        content = function_call['content'].replace('\n', '')
+        query = r'{}'.format(function_call['query'].replace('\\', ''))
 
         try:
           if query != '':
@@ -156,7 +155,7 @@ def response_generator(messages):
 
         except Exception as e:
           print(e)
-          reduced_messages.append({'role': 'assistant', 'content': f'Error: {e}\nĐôi khi script SQL không chính xác do thiếu dấu ngoặc kép trong tên bảng. Hãy kiểm tra lại script SQL.'})
+          reduced_messages.append({'role': 'assistant', 'content': f'Error: {e}\nĐôi khi script SQL không chính xác do thiếu dấu dấu nháy kép (quotation marks) trong tên bảng và chuỗi nằm trong dấu nháy đơn (single quotes). Hãy kiểm tra lại script SQL.'})
           try_count += 1
           if try_count >= re_try:
             res = {'text': function_call['apology'], 'data': None}
