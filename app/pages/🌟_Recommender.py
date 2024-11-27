@@ -12,8 +12,8 @@ from IPython.display import Image
 conn = psycopg2.connect(
     host="localhost",
     database="BookingProject",
-    user="postgres",
-    password="postgres"
+    user="airflow",
+    password="airflow"
 )
 
 # Áp dụng CSS
@@ -87,6 +87,33 @@ st.markdown("""
 
 st.markdown('<div class="stTitle">Top Picks for Your Stay</div>', unsafe_allow_html=True)
 
+
+accommodation_types = [
+    'Apartments',
+    'Hostels',
+    'Hotels',
+    'Motels',
+    'Resorts',
+    'Bed and breakfasts',
+    'Farm stays',
+    'Villas',
+    'Campsites',
+    'Guest houses',
+    'Holiday homes',
+    'Lodges',
+    'Homestays',
+    'Country houses',
+    'Luxury tents',
+    'Capsule hotels',
+    'Love hotels',
+    'Chalets',
+    'Boats',
+    'Inns',
+    'Aparthotels',
+    'Cruises'
+]
+
+
 location = ["Ha Long, Quang Ninh, Vietnam", "Hoi An, Quang Nam, Vietnam",
             "Thua Thien Hue, Vietnam", "Nha Trang, Khanh Hoa, Vietnam",
             "Da Lat, Lam Dong, Vietnam", "Vung Tau, Ba Ria - Vung Tau, Vietnam", "Da Nang, Vietnam",
@@ -102,7 +129,7 @@ with col1:
 with col2:
     option1 = st.selectbox(
         "Tùy chọn:",
-        options=["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3"],
+        options=accommodation_types,
         label_visibility="collapsed",
         key=f"selectbox_1"
     )
@@ -114,7 +141,7 @@ with col2:
     )
     option3 = st.selectbox(
         "Tùy chọn:",
-        options=[0, 1, 2, 3, 5, 7, 10, 14, 30],
+        options=[0, 1, 2, 3, 5, 7, 14, 30],
         label_visibility="collapsed",
         key=f"selectbox_3"
     )
@@ -122,16 +149,14 @@ user_input_address = st.text_input("Specific address: ")
 user_input_others = st.text_input("Other things you want (amentities, price per night,...): ")
 
 
-
-crawl_date = '2024-11-14'
 query = """
     SELECT * 
     FROM public."Accommodation" as ac
     JOIN public."Bed_price" as bp ON ac.acm_id = bp.bp_accommodation_id
     JOIN public."Rooms" AS rm ON rm.rm_accommodation_id = ac.acm_id
-    WHERE ac.acm_address = %s AND bp.bp_future_interval = %s
+    WHERE ac.acm_location = %s AND bp.bp_future_interval = %s AND ac.acm_type= %s
 """
-df = pd.read_sql(query, conn, params=(option2, option3))
+df = pd.read_sql(query, conn, params=(option2, option3,option1))
 new_df = df[['acm_id', 'acm_name', 'acm_amenities' ,'acm_address',
              'acm_description', 'acm_location', 'rm_name', 'rm_guests_number',
              'rm_bed_types',

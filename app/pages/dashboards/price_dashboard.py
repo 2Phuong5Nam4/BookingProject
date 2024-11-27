@@ -308,7 +308,7 @@ def show(header):
             col5, _, col6 = st.columns([4, 2, 4])
             with col5:
                 guests_number = st.slider(
-                    "Select guests number:", min_value=1, max_value=30, value=(1, 30), step=1)
+                    "Select guests number:", min_value=1, max_value=20, value=(1, 20), step=1)
             with col6:
                 min_review_count = st.number_input(
                     "Enter minimum review count:", value=0, step=1)

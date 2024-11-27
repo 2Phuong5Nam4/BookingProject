@@ -8,7 +8,7 @@ locations = ["All", "Hạ Long", "Hội An", "Thừa Thiên Huế", "Nha Trang",
 
 def get_data(query):
     conn = psycopg2.connect(
-        host="172.17.0.1",
+        host="localhost",
         database="BookingProject",
         user="airflow",
         password="airflow"
