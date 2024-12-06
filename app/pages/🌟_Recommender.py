@@ -14,8 +14,8 @@ from IPython.display import Image
 conn = psycopg2.connect(
     host="localhost",
     database="BookingProject",
-    user="postgres",
-    password="postgres"
+    user="airflow",
+    password="airflow"
 )
 
 # Áp dụng CSS

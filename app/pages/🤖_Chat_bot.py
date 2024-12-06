@@ -112,7 +112,7 @@ db_script = f'''
 conn = st.connection('postgresql', type='sql')
 
 client = OpenAI(
-    api_key=os.getenv('GEMINI_API_KEY'),
+    api_key='AIzaSyCghupn9XtvSkuuE7V4pKqXARVDf2XMp_0',
     base_url='https://generativelanguage.googleapis.com/v1beta/'
 )
 

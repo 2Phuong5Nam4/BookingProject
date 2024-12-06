@@ -14,6 +14,7 @@ def show():
     import matplotlib.pyplot as plt
     import pydeck as pdk
     import pycountry_convert as pc
+    from plotly.colors import sample_colorscale
 
     def postgres_query_accommodation(location=None, type=None, star_range=None, customer_rating=None, guests_number=None, review_count=None):
         conn = st.connection("postgresql", type="sql")
@@ -122,34 +123,25 @@ def show():
         'Nha Trang, Khanh Hoa, Vietnam': 'Khánh Hòa',
         'Ha Long, Quang Ninh, Vietnam': 'Quảng Ninh'
     }
+    replace_titel = {
+        'Quảng Bình': 'Phong Nha',
+        'Vũng Tàu': 'Vũng Tàu',
+        'Kiên Giang': 'Phú Quốc',
+        'Lào Cai': 'Sa Pa',
+        'Đà Nẵng': 'Đà Nẵng',
+        'Quảng Nam': 'Hội An',
+        'Lâm Đồng': 'Đà Lạt',
+        'Thừa Thiên Huế': 'Huế',
+        'Khánh Hòa': 'Nha Trang',
+        'Quảng Ninh': 'Hạ Long'
+
+    }
+
 
     df_acc['acm_location'] = df_acc['acm_location'].replace(replace_map)
 
-    acm_type_mapping = {
-        '201': 'Apartments',
-        '204': 'Hotels',
-        '222': 'Homestays',
-        '216': 'Guest houses',
-        '208': 'Bed and breakfasts',
-        '203': 'Hostels',
-        '226': 'Love hotels',
-        '213': 'Villas',
-        '220': 'Holiday homes',
-        '225': 'Capsule hotels',
-        '205': 'Motels',
-        '206': 'Resorts',
-        '210': 'Farm stays',
-        '214': 'Campsites',
-        '221': 'Lodges',
-        '228': 'Chalets',
-        '224': 'Luxury tents',
-        '223': 'Country houses'
-    }
 
-    df_acc['acm_type'] = df_acc['acm_type'].replace(acm_type_mapping)
-    
-    print(df_acc['acm_type'].nunique())
-    
+
     with st.container():
         col1, col2 = st.columns([5, 5])
 
@@ -171,34 +163,24 @@ def show():
                 
                 col1_sub1, col1_sub2, col1_sub3 = st.columns(3)
                 # 1. Tỉnh có nhiều chỗ ở nhất
-                most_types = df_acc['acm_location'].value_counts().idxmax()
-                most_types_value = df_acc['acm_location'].value_counts().max()
+                most_types = df_acc['acm_location'].replace(replace_titel).value_counts().idxmax()
 
                 # 2. Tỉnh có giá phải chăng nhất (trung bình giá thấp nhất)
                 average_prices = df_price.merge(df_acc, left_on='bp_accommodation_id', right_on='acm_id')\
                     .groupby('acm_location')['bp_price'].mean()
                 most_affordable = average_prices.idxmin()
-                most_affordable_value = average_prices.min()
 
                 # 3. Tỉnh có lượt đánh giá tích cực nhiều nhất
                 df_fb['positive_feedback'] = df_fb['fb_positive'].apply(lambda x: 1 if pd.notna(x) and x != 'Nothing' else 0)
                 positive_feedback_counts = df_fb.merge(df_acc, left_on='fb_accommodation_id', right_on='acm_id')\
                     .groupby('acm_location')['positive_feedback'].sum()
                 highest_positive_feedback = positive_feedback_counts.idxmax()
-                highest_positive_feedback_value = positive_feedback_counts.max()
-
-                # Tạo dữ liệu tổng hợp
-                summary = pd.DataFrame({
-                    'Metric': ['Most types', 'Most affordable', 'Highest positive feedback'],
-                    'Location': [most_types, most_affordable, highest_positive_feedback],
-                    'Value': [most_types_value, most_affordable_value, highest_positive_feedback_value]
-                })
                 
                 # Nội dung của từng cột
                 with col1_sub1:
                     st.markdown(f"""
                     <div style="
-                        background: linear-gradient(135deg, #FF0000, #FFD700);
+                        background: linear-gradient(135deg, #0000FF, #87CEFA);
                         flex-direction: column;
                         padding: 10px;
                         border-radius: 10px;
@@ -214,7 +196,7 @@ def show():
                 with col1_sub2:
                     st.markdown(f"""
                     <div style="
-                        background: linear-gradient(135deg, #FF0000, #FF8C00);
+                        background: linear-gradient(135deg, #4682B4, #B0E0E6);
                         flex-direction: column;
                         padding: 10px;
                         border-radius: 10px;
@@ -229,7 +211,7 @@ def show():
                 with col1_sub3:
                     st.markdown(f"""
                     <div style="
-                        background: linear-gradient(135deg, #FFD700, #FF8C00);
+                        background: linear-gradient(135deg, #1E90FF, #ADD8E6);
                         flex-direction: column;
                         padding: 10px;
                         border-radius: 10px;
@@ -253,25 +235,15 @@ def show():
                     """, unsafe_allow_html=True)
                 
                 #########################################################
-                row1, row2 = st.columns(2)  # Hàng 1
-                room_with_star = df_rooms.merge(df_acc[['acm_id', 'acm_star_rating', 'acm_customer_rating', 'acm_location', 'acm_review_count', 'acm_type']],
+                row1, row2 = st.columns([3,4])  # Hàng 1
+                room_with_star = df_rooms.merge(df_acc[['acm_id', 'acm_star_rating', 'acm_customer_rating', 'acm_location', 'acm_review_count', 'acm_group']],
                                                 left_on='rm_accommodation_id',
                                                 right_on='acm_id',
                                                 how='left')
                 room_with_price = df_price.merge(room_with_star, left_on='bp_room_id', right_on='rm_room_id', how='left')
 
                 ########################################################
-                row3, row4 = st.columns(2)  # Hàng 2
-                price_by_location_type = (
-                    room_with_price.groupby(['acm_location', 'acm_type'])['bp_price']
-                    .mean()
-                    .reset_index()
-                )
-
-                top_acm_types = price_by_location_type.groupby('acm_type')['bp_price'].mean().nlargest(5).index
-                filtered_price_by_type = price_by_location_type[price_by_location_type['acm_type'].isin(top_acm_types)]
-                
-                # Vẽ 4 biểu đồ
+                # Vẽ 2 biểu đồ
                 with row1:
                     avg_price_by_star = room_with_price.groupby('acm_star_rating')['bp_price'].mean().reset_index()
 
@@ -283,114 +255,141 @@ def show():
                         labels={'acm_star_rating': 'Star rating', 'bp_price': 'Average price (VND)'},
                         text=None,
                         color='bp_price',
-                        color_continuous_scale='Oranges'
+                        color_continuous_scale='PuBu'
                     )
 
                     fig_bar1.update_layout(
                         xaxis_title="Star rating",
                         yaxis_title="Average price (VND)",
-                        coloraxis_showscale=False
+                        coloraxis_showscale=False,
+                        height=400
                     )
                     
                     st.plotly_chart(fig_bar1)
 
                     
                 with row2:
-                    room_with_price['acm_customer_rating'] = room_with_price['acm_customer_rating'].round()
-                    avg_price_by_rating = room_with_price.groupby('acm_customer_rating')['bp_price'].mean().reset_index()
+                    nationality_totals = df_fb.groupby("fb_nationality").size().reset_index(name="total_count")
+                    nationality_totals_sorted = nationality_totals.sort_values(by="total_count", ascending=False)
+                    top_7_nationalities = nationality_totals_sorted.head(7)
 
-                    fig_bar2 = px.bar(
-                        avg_price_by_rating,
-                        x='acm_customer_rating',
-                        y='bp_price',
-                        title='Average price by score rating',
-                        labels={'acm_customer_rating': 'Score', 'bp_price': 'Average price (VND)'},
-                        text=None,
-                        color='acm_customer_rating',
-                        color_continuous_scale='Reds'
+                    colors = sample_colorscale(px.colors.sequential.Blues, [i / max(len(top_7_nationalities) - 1, 1) for i in range(len(top_7_nationalities))])[::-1]
+
+                    fig = go.Figure()
+
+                    for i, row in enumerate(top_7_nationalities.itertuples()):
+                        fig.add_trace(go.Bar(
+                            x=[row.fb_nationality],
+                            y=[row.total_count],
+                            marker_color=colors[i],
+                            name=row.fb_nationality,
+                        ))
+
+                    fig.update_layout(
+                        yaxis_title="Number of tourists",
+                        showlegend=True,
+                        height=400,
+                        margin=dict(t=50, b=50, l=50, r=50),
+                        title='Tourists Nationality Distribution'
                     )
-
-                    fig_bar2.update_layout(
-                        xaxis_title="Score rating",
-                        yaxis_title="Average price (VND)",
-                        coloraxis_showscale=False
-                    )
-
-                    st.plotly_chart(fig_bar2)
+                
+                   
+                    st.plotly_chart(fig, config={"displayModeBar": False}, use_container_width=True)
                 
                 st.markdown('<div class="row-container"></div>', unsafe_allow_html=True)  # Thêm khoảng cách nhỏ giữa các hàng
 
         # Cột thứ hai
         with col2:
-            row3, row4 = st.columns(2)  # Hàng 2
-            price_by_location_type = (
-                room_with_price.groupby(['acm_location', 'acm_type'])['bp_price']
-                .mean()
-                .reset_index()
+            eda_df = postgres_query_accommodation()
+            df = eda_df[['fb_nationality', 'acm_location']]
+            # Function to map nationality to continent
+            def country_to_continent(country_name):
+                try:
+                    country_alpha2 = pc.country_name_to_country_alpha2(country_name)
+                    country_continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
+                    country_continent_name = pc.convert_continent_code_to_continent_name(country_continent_code)
+                    return country_continent_name
+                except:
+                    return 'Unknown'
+            # Apply the function to map nationalities to continents
+            df['Continent'] = df['fb_nationality'].apply(country_to_continent)
+            df['acm_location'] = df['acm_location'].replace(replace_map).replace(replace_titel)
+            # Filter out nationalities that are not Vietnam
+            # df = df[df['fb_nationality'] != 'Vietnam']
+            # Group by location and continent to get counts
+            grouped = df.groupby(['acm_location', 'Continent']).size().unstack(fill_value=0)
+            # Calculate percentages
+            grouped_percent = grouped.div(grouped.sum(axis=1), axis=0) * 100
+            # Calculate the total percentage for each location
+            grouped_percent['Total'] = grouped_percent.sum(axis=1)
+            # Sort by the total percentage in ascending order
+            grouped_percent_sorted = grouped_percent.sort_values(by='Total', ascending=True).drop(columns='Total')
+            # Melt the DataFrame to long format for Plotly
+            grouped_percent_melted = grouped_percent_sorted.reset_index().melt(id_vars='acm_location', var_name='Continent', value_name='Percentage')
+            # Plotting the stacked bar chart using Plotly
+            fig = px.bar(grouped_percent_melted, 
+                        x='acm_location', 
+                        y='Percentage', 
+                        color='Continent', 
+                        title='Percentage of Each Visitor Continent in Each Location (Sorted by Magnitude, Smaller on Top)',
+                        labels={'acm_location': 'Location', 'Percentage': 'Percentage'},
+                        barmode='stack')
+            fig.update_layout(
+                height=540
             )
+            st.plotly_chart(fig, use_container_height=True)
 
-            top_acm_types = price_by_location_type.groupby('acm_type')['bp_price'].mean().nlargest(5).index
-            filtered_price_by_type = price_by_location_type[price_by_location_type['acm_type'].isin(top_acm_types)]
+                
+    with st.container():
+        count_by_location_type = (
+            room_with_price.groupby(['acm_location', 'acm_group'])['bp_price']
+            .count()
+            .reset_index(name='count')
+        )
+
+        # Lấy top 5 loại hình chỗ ở phổ biến nhất (dựa trên tổng số lượng toàn quốc)
+        top_acm_types = count_by_location_type.groupby('acm_group')['count'].sum().nlargest(5).index
+
+        # Lọc dữ liệu chỉ bao gồm các loại hình top 5
+        filtered_count_by_type = count_by_location_type[count_by_location_type['acm_group'].isin(top_acm_types)]
+        filtered_count_by_type = filtered_count_by_type.replace({'acm_location': replace_titel})
+
+        custom_blues = sample_colorscale(px.colors.sequential.Blues, [0.3, 0.45, 0.6, 0.75, 0.9])
+
+        # Vẽ biểu đồ hiển thị số lượng
+        fig_bar3 = px.bar(
+            filtered_count_by_type,
+            x='acm_location',
+            y='count',
+            color='acm_group',
+            barmode='group',
+            title='Top 5 Accommodation Types by Count and Location',
+            labels={'acm_location': 'Location', 'count': 'Count', 'acm_type': 'Accommodation Type'},
+            # height=570,
+            # color_discrete_sequence=custom_blues
+        )
+        fig_bar3.update_layout(
+            xaxis_tickangle=0,
+            xaxis_title=None,
+            yaxis_title=None,
+            showlegend=True,  # Hiển thị chú thích
+            coloraxis_showscale=True
+        )
+        st.plotly_chart(fig_bar3)
             
-            with row3:
-                fig_bar3 = px.bar(
-                    filtered_price_by_type,
-                    x='acm_location',
-                    y='bp_price',
-                    color='acm_type',
-                    barmode='group',
-                    title='Average Price by Top 5 Accommodation Types and Location',
-                    labels={'acm_location': 'Location', 'bp_price': 'Average Price (VND)', 'acm_type': 'Accommodation Type'},
-                    color_continuous_scale='YlOrBr',
-                    height=570
-                )
-                fig_bar3.update_layout(
-                    xaxis_tickangle=45,
-                    xaxis_title=None,
-                    yaxis_title=None,
-                    showlegend=False,
-                    coloraxis_showscale=False
-                )
-                st.plotly_chart(fig_bar3)
-                
-            with row4:
-                low_acm_types = price_by_location_type.groupby('acm_type')['bp_price'].mean().nsmallest(5).index
-                filtered_price_by_low_type = price_by_location_type[price_by_location_type['acm_type'].isin(low_acm_types)]
-
-                fig_bar4 = px.bar(
-                    filtered_price_by_low_type,
-                    x='acm_location',
-                    y='bp_price',
-                    color='acm_type',
-                    barmode='group',
-                    title='Average Price by Bottom 5 Accommodation Types and Location',
-                    labels={'acm_location': 'Location', 'bp_price': 'Average Price (VND)', 'acm_type': 'Accommodation Type'},
-                    color_continuous_scale='OrRd',
-                    height=570        
-                )
-                    
-                fig_bar4.update_layout(
-                    xaxis_tickangle=45,
-                    xaxis_title=None,
-                    showlegend=False,
-                    coloraxis_showscale=False
-                )
-                    
-                st.plotly_chart(fig_bar4)
-                
     with st.container():
         row1, row2, row3, row4, row5 = st.columns([1,1,1,1,1])
         
         def plot_accommodation_map(df, province, map_style="carto-positron"):
             province_data = df[df['acm_location'] == province]
             
-            type_counts = province_data['acm_type'].value_counts(normalize=True)
+            type_counts = province_data['acm_group'].value_counts(normalize=True).sort_values(ascending=False)
             
             top_types = type_counts.head(7).index
-            province_data['acm_type_grouped'] = province_data['acm_type'].apply(
+            province_data['acm_type_grouped'] = province_data['acm_group'].apply(
                 lambda x: x if x in top_types else 'Other'
             )
-            
+            colors = px.colors.diverging.Picnic[::-1]
             # Vẽ map bằng Plotly Express
             fig = px.scatter_mapbox(
                 province_data,
@@ -400,10 +399,21 @@ def show():
                 size_max=15,
                 zoom=12,
                 mapbox_style=map_style,
-                title=f"Accommodation Map of {province}",
-                color_discrete_sequence=px.colors.sequential.Oranges
+                title=f"Accommodation Map of {replace_titel[province]}",
+                color_discrete_sequence=colors
             )
-            fig.update_layout(showlegend=False)
+            fig.update_layout(
+                showlegend=True,
+                legend=dict(
+                    x=0.01,  # Legend nằm gần mép trái bản đồ
+                    y=0.01,  # Legend nằm gần mép dưới bản đồ
+                    xanchor="left",  # Căn lề trái
+                    yanchor="bottom",  # Căn lề dưới
+                    bgcolor="rgba(255, 255, 255, 0.6)",  # Nền trắng trong suốt
+                    bordercolor="black",  # Viền màu đen
+                    borderwidth=1
+                ),
+                margin=dict(t=50, b=50))
             return fig
         
         with row1:
@@ -515,37 +525,27 @@ def show():
             # Save the visualization to an HTML file
             st.pydeck_chart(deck)
         with col12:
-            df = eda_df[['fb_nationality', 'acm_location']]
-            # Function to map nationality to continent
-            def country_to_continent(country_name):
-                try:
-                    country_alpha2 = pc.country_name_to_country_alpha2(country_name)
-                    country_continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
-                    country_continent_name = pc.convert_continent_code_to_continent_name(country_continent_code)
-                    return country_continent_name
-                except:
-                    return 'Unknown'
-            # Apply the function to map nationalities to continents
-            df['Continent'] = df['fb_nationality'].apply(country_to_continent)
-            df['acm_location'] = df['acm_location'].str.replace(', Vietnam', '')
-            # Filter out nationalities that are not Vietnam
-            df = df[df['fb_nationality'] != 'Vietnam']
-            # Group by location and continent to get counts
-            grouped = df.groupby(['acm_location', 'Continent']).size().unstack(fill_value=0)
-            # Calculate percentages
-            grouped_percent = grouped.div(grouped.sum(axis=1), axis=0) * 100
-            # Calculate the total percentage for each location
-            grouped_percent['Total'] = grouped_percent.sum(axis=1)
-            # Sort by the total percentage in ascending order
-            grouped_percent_sorted = grouped_percent.sort_values(by='Total', ascending=True).drop(columns='Total')
-            # Melt the DataFrame to long format for Plotly
-            grouped_percent_melted = grouped_percent_sorted.reset_index().melt(id_vars='acm_location', var_name='Continent', value_name='Percentage')
-            # Plotting the stacked bar chart using Plotly
-            fig = px.bar(grouped_percent_melted, 
-                        x='acm_location', 
-                        y='Percentage', 
-                        color='Continent', 
-                        title='Percentage of Each Visitor Continent in Each Location (Sorted by Magnitude, Smaller on Top)',
-                        labels={'acm_location': 'Location', 'Percentage': 'Percentage'},
-                        barmode='stack')
-            st.plotly_chart(fig, use_container_width=True)
+            # Plot multiple columns bar chart for negative and positive feedback
+            eda_df = postgres_query_accommodation()
+            result_df = preprocess(eda_df)
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=result_df['acm_location'].replace(replace_map).replace(replace_titel),
+                y=result_df['fb_positive'],
+                name='Positive feedback',
+                marker_color='green'
+            ))
+            fig.add_trace(go.Bar(
+                x=result_df['acm_location'].replace(replace_map).replace(replace_titel),
+                y=result_df['fb_negative'],
+                name='Negative feedback',
+                marker_color='red'
+            ))
+            fig.update_layout(
+                barmode='group',  # Changed from 'stack' to 'group'
+                xaxis_title='Accommodation name',
+                yaxis_title='Feedback count',
+                title='Feedback count by accommodation',
+                showlegend=True
+            )
+            st.plotly_chart(fig)
