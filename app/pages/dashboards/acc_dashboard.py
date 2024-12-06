@@ -166,7 +166,7 @@ def show():
                 most_types = df_acc['acm_location'].replace(replace_titel).value_counts().idxmax()
 
                 # 2. Tỉnh có giá phải chăng nhất (trung bình giá thấp nhất)
-                temp = df_acc
+                temp = df_acc.copy()
                 temp['acm_location'] = temp['acm_location'].replace(replace_titel)
                 average_prices = df_price.merge(temp, left_on='bp_accommodation_id', right_on='acm_id')\
                     .groupby('acm_location')['bp_price'].mean()
