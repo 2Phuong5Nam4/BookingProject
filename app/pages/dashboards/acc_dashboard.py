@@ -166,13 +166,15 @@ def show():
                 most_types = df_acc['acm_location'].replace(replace_titel).value_counts().idxmax()
 
                 # 2. Tỉnh có giá phải chăng nhất (trung bình giá thấp nhất)
-                average_prices = df_price.merge(df_acc, left_on='bp_accommodation_id', right_on='acm_id')\
+                temp = df_acc
+                temp['acm_location'] = temp['acm_location'].replace(replace_titel)
+                average_prices = df_price.merge(temp, left_on='bp_accommodation_id', right_on='acm_id')\
                     .groupby('acm_location')['bp_price'].mean()
                 most_affordable = average_prices.idxmin()
 
                 # 3. Tỉnh có lượt đánh giá tích cực nhiều nhất
                 df_fb['positive_feedback'] = df_fb['fb_positive'].apply(lambda x: 1 if pd.notna(x) and x != 'Nothing' else 0)
-                positive_feedback_counts = df_fb.merge(df_acc, left_on='fb_accommodation_id', right_on='acm_id')\
+                positive_feedback_counts = df_fb.merge(temp, left_on='fb_accommodation_id', right_on='acm_id')\
                     .groupby('acm_location')['positive_feedback'].sum()
                 highest_positive_feedback = positive_feedback_counts.idxmax()
                 
