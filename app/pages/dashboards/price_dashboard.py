@@ -4,10 +4,12 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
+import logging as log
 import os
 from streamlit_calendar import calendar
 from datetime import datetime, timedelta
+import pydeck as pdk
+import pycountry_convert as pc
 
 charts = """
 - Dash tổng quan về acc:
@@ -88,12 +90,12 @@ def postgres_query_line_chart(location=None, type=None, star_range=None, custome
 
     if customer_rating is not None:
         conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
-    if future_interval is not None:
-        conditions.append(f"bp.bp_future_interval BETWEEN {future_interval[0]} AND {future_interval[1]}")
+    # if future_interval is not None:
+    #     conditions.append(f"bp.bp_future_interval BETWEEN {future_interval[0]} AND {future_interval[1]}")
     if guests_number is not None:
         conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
-    # if review_count is not None:
-        # conditions.append(f"acm.acm_review_count BETWEEN {review_count[0]} AND {review_count[1]}")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
     if conditions:
         base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
     base += " GROUP BY bp.bp_crawled_date, acm.acm_location"
@@ -105,14 +107,47 @@ def postgres_query_line_chart(location=None, type=None, star_range=None, custome
 
 def postgres_query_bar_chart(location=None, type=None, star_range=None, customer_rating=None, review_count=None, guests_number=None, checkin_date=None):
     base = """
-    SELECT 
-        bp.bp_future_interval, 
-        AVG(bp.bp_price) as avg_price, 
-        acm.acm_location, 
-        count(bp.bp_room_id) as room_count,
-        bp.bp_crawled_date + bp.bp_future_interval * INTERVAL '1 day' as bp_checkin_date
-    FROM 
-        public."Bed_price" bp
+        SELECT 
+            bp.bp_future_interval, 
+            AVG(bp.bp_price) as avg_price, 
+            acm.acm_location, 
+            bp.bp_crawled_date + bp.bp_future_interval * INTERVAL '1 day' as bp_checkin_date
+        FROM 
+            public."Bed_price" bp
+        JOIN 
+            public."Rooms" rm ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id
+        JOIN 
+            public."Accommodation" acm ON bp.bp_accommodation_id = acm.acm_id
+    """
+    conditions = []
+    if location is not None and location != ["All"]:
+        location_condition = " OR ".join(
+            f"acm.acm_location = '{provinces[loc]}'" for loc in location)
+        conditions.append(location_condition)
+    if type is not None and type != "All":
+        conditions.append(f"acm.acm_type = '{type}'")
+    if star_range is not None:
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
+    if customer_rating is not None:
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
+    if guests_number is not None:
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
+    if checkin_date is not None:
+        conditions.append(f"bp.bp_crawled_date + bp.bp_future_interval * INTERVAL '1 day' = '{checkin_date}'")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
+    # if review_count is not None:
+        # conditions.append(f"acm.acm_review_count BETWEEN {review_count[0]} AND {review_count[1]}")
+    if conditions:
+        base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
+    base += " GROUP BY bp.bp_future_interval, acm.acm_location, bp_checkin_date"
+    df = conn.query(base, ttl="10m")
+    return df
+
+def postgres_query_price_by_acm_type(location=None, type=None, star_range=None, customer_rating=None, review_count=None, guests_number=None):
+    base = """
+    SELECT acm.acm_type, AVG(bp.bp_price) as avg_price
+    FROM public."Bed_price" bp
     JOIN 
         public."Rooms" rm ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id
     JOIN 
@@ -131,31 +166,149 @@ def postgres_query_bar_chart(location=None, type=None, star_range=None, customer
         conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
     if guests_number is not None:
         conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
-    if checkin_date is not None:
-        conditions.append(f"bp_checkin_date = '{checkin_date}'")
-    # if review_count is not None:
-        # conditions.append(f"acm.acm_review_count BETWEEN {review_count[0]} AND {review_count[1]}")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
     if conditions:
         base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
-    base += " GROUP BY bp.bp_future_interval, acm.acm_location, bp_checkin_date"
-    df = conn.query(base, ttl="10m")
-    return df
+    base += " GROUP BY acm.acm_type"
+    return conn.query(base, ttl="10m")
 
-
-def postgres_query_calendar_prices(location=None, type=None, star_range=None, customer_rating=None, guests_number=None):
+def postgres_query_calendar_prices(location=None, type=None, star_range=None, customer_rating=None, guests_number=None, review_count=None):
     base = """
     SELECT bp.bp_crawled_date + bp.bp_future_interval * INTERVAL '1 day' AS bp_checkin_date, avg(bp.bp_price) as avg_price
     FROM public."Bed_price" bp
+    JOIN 
+        public."Rooms" rm ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id
+    JOIN 
+        public."Accommodation" acm ON bp.bp_accommodation_id = acm.acm_id
+    """
+    conditions = []
+    
+    if location is not None and location != ["All"]:
+        location_condition = " OR ".join(
+            f"acm.acm_location = '{provinces[loc]}'" for loc in location)
+        conditions.append(location_condition)
+
+    if type is not None and type != "All":
+        conditions.append(f"acm.acm_type = '{type}'")
+
+    if star_range is not None:
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
+
+    if customer_rating is not None:
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
+    # if future_interval is not None:
+    #     conditions.append(f"bp.bp_future_interval BETWEEN {future_interval[0]} AND {future_interval[1]}")
+    if guests_number is not None:
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
+    if conditions:
+        base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
+    base += " GROUP BY bp_checkin_date ORDER BY bp_checkin_date"
+    return conn.query(base, ttl="10m")
+
+def postgres_query_price_by_number_of_guests(location=None, type=None, star_range=None, customer_rating=None, guests_number=None, review_count=None):
+    base = """
+    SELECT rm.rm_guests_number, AVG(bp.bp_price) as avg_price
+    FROM public."Bed_price" bp
+    JOIN 
+        public."Rooms" rm ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id
+    JOIN 
+        public."Accommodation" acm ON bp.bp_accommodation_id = acm.acm_id
     """
     conditions = []
     if location is not None and location != ["All"]:
         location_condition = " OR ".join(
             f"acm.acm_location = '{provinces[loc]}'" for loc in location)
         conditions.append(location_condition)
-    # ...existing condition checks...
+    if type is not None and type != "All":
+        conditions.append(f"acm.acm_type = '{type}'")
+    if star_range is not None:
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
+    if customer_rating is not None:
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
+    if guests_number is not None:
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
+    if conditions:
+        base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
+    base += " GROUP BY rm.rm_guests_number"
+    return conn.query(base, ttl="10m")
+
+def postgre_query_area_by_number_of_guests(location=None, type=None, star_range=None, customer_rating=None, guests_number=None, review_count=None):
+    base = """
+    SELECT rm.rm_guests_number, AVG(rm.rm_area) as avg_area
+    FROM public."Rooms" rm
+    JOIN 
+        public."Bed_price" bp ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id
+    JOIN 
+        public."Accommodation" acm ON bp.bp_accommodation_id = acm.acm_id
+    """
+    conditions = []
+    if location is not None and location != ["All"]:
+        location_condition = " OR ".join(
+            f"acm.acm_location = '{provinces[loc]}'" for loc in location)
+        conditions.append(location_condition)
+    if type is not None and type != "All":
+        conditions.append(f"acm.acm_type = '{type}'")
+    if star_range is not None:
+        conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
+    if customer_rating is not None:
+        conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
+    if guests_number is not None:
+        conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
+    if review_count is not None:
+        conditions.append(f"acm.acm_review_count >= {review_count}")
+    if conditions:
+        base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
+    base += " GROUP BY rm.rm_guests_number"
+    return conn.query(base, ttl="10m")
+
+def postgres_query_accommodation(location=None, type=None, star_range=None, customer_rating=None, guests_number=None, review_count=None):
+    base = """
+        SELECT 
+        a.acm_id, 
+        a.acm_lat, 
+        a.acm_long, 
+        a.acm_location, 
+        a.acm_name,
+        f.fb_accommodation_id, 
+        f.fb_positive, 
+        f.fb_negative,
+        f.fb_nationality
+    FROM 
+        public."Accommodation" a
+    INNER JOIN 
+        public."Feedback" f
+    ON 
+        a.acm_id = f.fb_accommodation_id;
+    """
+    # conditions = []
+    
+    # if location is not None and location != ["All"]:
+    #     location_condition = " OR ".join(
+    #         f"acm.acm_location = '{provinces[loc]}'" for loc in location)
+    #     conditions.append(location_condition)
+
+    # if type is not None and type != "All":
+    #     conditions.append(f"acm.acm_type = '{type}'")
+
+    # if star_range is not None:
+    #     conditions.append(f"acm.acm_star_rating BETWEEN {star_range[0]} AND {star_range[1]}")
+
+    # if customer_rating is not None:
+    #     conditions.append(f"acm.acm_customer_rating BETWEEN {customer_rating[0]} AND {customer_rating[1]}")
+    # # if future_interval is not None:
+    # #     conditions.append(f"bp.bp_future_interval BETWEEN {future_interval[0]} AND {future_interval[1]}")
+    # if guests_number is not None:
+    #     conditions.append(f"rm.rm_guests_number BETWEEN {guests_number[0]} AND {guests_number[1]}")
+    # if review_count is not None:
+    #     conditions.append(f"acm.acm_review_count >= {review_count}")
     # if conditions:
     #     base += " WHERE " + " AND ".join("("+c+")" for c in conditions)
-    base += " GROUP BY bp_checkin_date ORDER BY bp_checkin_date"
+    # base += " GROUP BY bp_checkin_date ORDER BY bp_checkin_date"
     return conn.query(base, ttl="10m")
 
 
@@ -163,7 +316,15 @@ def create_collapsible_container(title, content_func):
     with st.expander(title, expanded=False):
         return content_func()
 
+def preprocess(inner_join):
+    result_df = inner_join.groupby('fb_accommodation_id')[['fb_positive', 'fb_negative']].count().reset_index()
+    result_df = pd.merge(result_df, inner_join[['fb_accommodation_id', 'acm_lat', 'acm_long', 'acm_name', 'acm_location']], on='fb_accommodation_id', how='left').drop_duplicates(subset='fb_accommodation_id')
 
+    result_df['pos_ratio'] = result_df['fb_positive'] / (result_df['fb_positive'] + result_df['fb_negative']) * 100
+    result_df['pos_ratio'] = result_df['pos_ratio'].round(2)  # Round to 2 decimal places
+
+    result_df.rename(columns={'acm_lat': 'lat', 'acm_long': 'lon'}, inplace=True)
+    return result_df
 def show(header):
 
     if 'location_option' not in st.session_state:
@@ -178,31 +339,42 @@ def show(header):
                         selected_option.pop(0)
                     else:
                         st.session_state.location_option = ["All"]
+            col1, _, col2 = st.columns([4, 2, 4])
+            with col1:
+                location_option = st.multiselect(
+                    "Choose provinces:",
+                    options=provinces,
+                    default=st.session_state.location_option,
+                    on_change=lambda: update_selection(
+                        st.session_state.location_option),
+                    key="location_option",
+                )
+            with col2:
+                acc_type_option = st.selectbox(
+                    "Choose accommodation type:", options=acc_types)
+            col3, _, col4 = st.columns([4, 2, 4])
+            with col3:
+           
+                rating_range = st.slider(
+                    "Select star rating range:", min_value=1, max_value=5, value=(1, 5), step=1)
+            with col4:
+                customer_range = st.slider("Select customer rating range:",
+                                        min_value=1.0, max_value=10.0, value=(1.0, 10.0), step=0.5)
+            col5, _, col6 = st.columns([4, 2, 4])
+            with col5:
+                guests_number = st.slider(
+                    "Select guests number:", min_value=1, max_value=20, value=(1, 20), step=1)
+            with col6:
+                min_review_count = st.number_input(
+                    "Enter minimum review count:", value=0, step=1)
 
-            location_option = st.multiselect(
-                "Choose provinces:",
-                options=provinces,
-                default=st.session_state.location_option,
-                on_change=lambda: update_selection(
-                    st.session_state.location_option),
-                key="location_option",
-            )
-            acc_type_option = st.selectbox(
-                "Choose accommodation type:", options=acc_types)
-            rating_range = st.slider(
-                "Select star rating range:", min_value=1, max_value=5, value=(1, 5), step=1)
-            customer_range = st.slider("Select customer rating range:",
-                                       min_value=1.0, max_value=10.0, value=(1.0, 10.0), step=0.5)
-            guests_number = st.slider(
-                "Select guests number:", min_value=1, max_value=30, value=(1, 30), step=1)
-
-            return location_option, acc_type_option, rating_range, customer_range, guests_number
+            return location_option, acc_type_option, rating_range, customer_range, guests_number, min_review_count
 
         filters = create_collapsible_container("Filters", filter_widgets)
-        location_option, acc_type_option, rating_range, customer_range, guests_number = filters
+        location_option, acc_type_option, rating_range, customer_range, guests_number, min_review_count = filters
 
     df = postgres_query_line_chart(location=location_option, type=acc_type_option, star_range=rating_range,
-                                   customer_rating=customer_range, guests_number=guests_number)
+                                   customer_rating=customer_range, guests_number=guests_number, review_count=min_review_count)
 
     # Create subplots: 2 rows, 1 column, shared x-axis
     fig = make_subplots(
@@ -272,47 +444,57 @@ def show(header):
         st.plotly_chart(fig_1)
         st.plotly_chart(fig)
 
-    # Bar Chart for price in future interval
-    # subheader = st.subheader("Bar Chart for Price by Future Interval")
-    # df = postgres_query_bar_chart(location=location_option, type=acc_type_option,
-    #                             star_range=rating_range, customer_rating=customer_range, guests_number=guests_number)
-    # x = df['bp_future_interval'].unique()
-    # fig = make_subplots(
-    #     rows=2, cols=1, shared_xaxes=True, vertical_spacing=0)
-    # if location_option == ["All"]:
-    #     y = df.groupby('bp_future_interval')['avg_price'].mean()
-    #     fig.add_trace(go.Scatter(x=x,
-    #                                 y=y,
-    #                                 mode='lines',
-    #                                 name='All',
-    #                                 ), row=1, col=1)
-    # else:
-    #     for location in location_option:
-    #         df_location = df[df['acm_location'] == provinces[location]]
-    #         y = df_location.groupby('bp_future_interval')['avg_price'].mean()
-    #         fig.add_scatter(x=x,y=y,mode='lines',name=location, row=1, col=1)
+    col5, col6 = st.columns(2)
+    with col5:
+        # Using df to create a bar chart for price by acm_type
 
-    # y_bar = df['room_count'].groupby(df['bp_future_interval']).sum()
-    # fig.add_trace(go.Bar(x=x,
-    #                         y=y_bar,
-    #                         name='Room Count',
-    #                         marker_color = 'blue'
-    #     ), row=2, col=1)
-    # fig.update_layout(
-    #     xaxis2_title='Future Interval', yaxis_title='Price', yaxis2_title='Room Count', showlegend=True,
-    #         legend=dict(
-    #             yanchor="bottom",
-    #             y=0.99,
-    #             xanchor="right",
-    #             x=1.05
-    #         ),
-    #         modebar=dict(
-    #             orientation='v',
-    #             # position='right'
-    #         ),
-    #         margin=dict(r=0)  # Reduce right margin
-    # )
-    # st.plotly_chart(fig, use_container_width=True)
+        acc_type_df = postgres_query_price_by_acm_type(location=location_option, type=acc_type_option, star_range=rating_range,
+                                   customer_rating=customer_range, guests_number=guests_number, review_count=min_review_count
+                                      )
+
+        acc_type_df = acc_type_df.reset_index()
+        fig = px.bar(acc_type_df, x='acm_type', y='avg_price',
+                        title='Average Price by Accommodation Type')
+        fig.update_layout(
+            margin=dict(r=0),
+            height=600
+        )
+        st.plotly_chart(fig)
+    with col6:
+        # Using df to create a line chart for price by number of guests
+        fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05)
+        guests_df = postgres_query_price_by_number_of_guests(location=location_option, type=acc_type_option, star_range=rating_range,
+                                   customer_rating=customer_range, guests_number=guests_number, review_count=min_review_count
+                                      )
+        guests_df = guests_df.groupby('rm_guests_number')['avg_price'].mean()
+        guests_df = guests_df.reset_index()
+        x = guests_df['rm_guests_number']
+        y_line = guests_df['avg_price']
+        fig.add_scatter(x=x, y=y_line, mode='lines+markers',
+                        name='Price', row=1, col=1, line_shape='spline')
+        # bar chart for avg room area by number of guests
+        area_df = postgre_query_area_by_number_of_guests(location=location_option, type=acc_type_option, star_range=rating_range,
+                                      customer_rating=customer_range, guests_number=guests_number, review_count=min_review_count
+                                          )
+        area_df = area_df.groupby('rm_guests_number')['avg_area'].mean()
+        area_df = area_df.reset_index()
+        x = area_df['rm_guests_number']
+        y_bar = area_df['avg_area']
+        fig.add_trace(go.Bar(x=x,
+                            y=y_bar,
+                            name='Area',
+                            marker_color='blue',
+                            ), row=2, col=1)
+        fig.update_layout(
+            yaxis_title='Price', xaxis2_title='Number of Guests', yaxis2_title='Area',
+            showlegend=True,
+            title_text='Price and Area by Number of Guests',
+            height=600,
+            # Move legend to the center
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
 
     # Add calendar section before bar chart
     st.subheader("Price Calendar")
@@ -326,7 +508,8 @@ def show(header):
             type=acc_type_option,
             star_range=rating_range,
             customer_rating=customer_range,
-            guests_number=guests_number
+            guests_number=guests_number,
+            review_count=min_review_count
         )
 
         # Convert prices to calendar events
@@ -348,7 +531,8 @@ def show(header):
             },
             "initialView": "dayGridMonth",
             "selectable": True,
-            "dateClick": True
+            "dateClick": True,
+            "height": 500
         }
 
         custom_css = """
@@ -368,16 +552,10 @@ def show(header):
             custom_css=custom_css
         )
 
-
-# {'callback': 'select', 
-#  'select': {'allDay': True, 'start': '2024-11-18T17:00:00.000Z', 'end': '2024-11-19T17:00:00.000Z', 'view': {'type': 'dayGridMonth', 'title': 'November 2024',
-#     'activeStart': '2024-10-26T17:00:00.000Z', 'activeEnd': '2024-12-07T17:00:00.000Z', 'currentStart': '2024-10-31T17:00:00.000Z', 'currentEnd': '2024-11-30T17:00:00.000Z'
-#     }
-# }
-# }
   # Store selected date in session state
     if selected_date and 'select' in selected_date:
         # convert selected date to date time
+        log.error(selected_date['select'])
         selected_date = datetime.strptime(selected_date['select']['end'], "%Y-%m-%dT%H:%M:%S.%fZ")
         selected_date = selected_date.strftime("%Y-%m-%d")
         st.session_state.selected_date = selected_date
@@ -390,18 +568,41 @@ def show(header):
             star_range=rating_range,
             customer_rating=customer_range,
             guests_number=guests_number,
-            checkin_date=st.session_state.selected_date
+            checkin_date=st.session_state.selected_date,
+            review_count=min_review_count
         )
         df = df.groupby('bp_future_interval')['avg_price'].mean()
         fig = px.bar(df, x=df.index, y='avg_price',
                      title='Average Price by Future Interval')
+        fig.update_xaxes(tickvals=[0, 1, 2, 5, 7, 14, 30])
         fig.update_layout(
-            xaxis_title='Checkin Date', yaxis_title='Price',
+            xaxis_title='Future Interval', yaxis_title='Price',
             showlegend=False,
-            margin=dict(r=0)
+            margin=dict(r=0),
+            height=540
         )
         col4.plotly_chart(fig, use_container_width=True)
-
+    else:
+        df = postgres_query_bar_chart(
+            location=location_option,
+            type=acc_type_option,
+            star_range=rating_range,
+            customer_rating=customer_range,
+            guests_number=guests_number,
+            review_count=min_review_count
+        )
+        df = df.groupby('bp_future_interval')['avg_price'].mean()
+        fig = px.bar(df, x=df.index, y='avg_price',
+                     title='Average Price by Future Interval')
+        # add x axis [0, 1, 2, 5, 7, 14, 30] and keep layout the same even if there is no data
+        fig.update_xaxes(tickvals=[0, 1, 2, 5, 7, 14, 30])
+        fig.update_layout(
+            xaxis_title='Future Interval', yaxis_title='Price',
+            showlegend=False,
+            margin=dict(r=0),
+            height=600
+        )
+        col4.plotly_chart(fig, use_container_height=True)
         # # * So sánh giá tiền với đánh giá, số sao, diện tích / đầu người -> nên bỏ bao nhiêu tiền sẽ được trải nghiệm tốt nhất
     col9, col10 = st.columns(2)
     df = conn.query("SELECT acm.acm_customer_rating, acm.acm_star_rating, AVG(bp.bp_price) as avg_price FROM public.\"Bed_price\" bp JOIN public.\"Accommodation\" acm ON bp.bp_accommodation_id = acm.acm_id GROUP BY acm.acm_customer_rating, acm.acm_star_rating;", ttl="10m")
@@ -416,38 +617,115 @@ def show(header):
         st.plotly_chart(
             px.scatter(df, x='acm_star_rating', y='avg_price')
         )
-    col11, col12, col13 = st.columns(3)
+    st.title("GeoMap Visualization")
+    eda_df = postgres_query_accommodation()
+    result_df = preprocess(eda_df)
+    # Define a function to map percentage ranges to colors
+    def assign_color(percentage):
+        if percentage < 20:
+            return [34, 139, 34, 150]  # Green for 0-20%
+        elif percentage < 50:
+            return [255, 215, 0, 150]  # Yellow for 20-50%
+        elif percentage < 80:
+            return [255, 140, 0, 150]  # Orange for 50-80%
+        else:
+            return [255, 69, 0, 150]  # Red for 80-100%
+    col11, col12 = st.columns(2)
     with col11:
-        # Compare price by acc_type
-        st.subheader("Average Price by Accommodation Type")
-        df = conn.query("SELECT acm.acm_type, AVG(bp.bp_price) as avg_price FROM public.\"Bed_price\" bp JOIN public.\"Accommodation\" acm ON bp.bp_accommodation_id = acm.acm_id GROUP BY acm.acm_type;", ttl="10m")
-        st.plotly_chart(
-            px.bar(df, x='acm_type', y='avg_price')
-        )
-    with col12:
-        # Percent of price by location
-        st.subheader("Average Price by Location")
-        df = conn.query("SELECT acm.acm_location, AVG(bp.bp_price) as avg_price FROM public.\"Bed_price\" bp JOIN public.\"Accommodation\" acm ON bp.bp_accommodation_id = acm.acm_id GROUP BY acm.acm_location;", ttl="10m")
-        reversed_provinces = {v: k for k, v in provinces.items()}
-        df['acm_location'] = df['acm_location'].map(reversed_provinces)
-        st.plotly_chart(
-            px.bar(df, x='acm_location', y='avg_price')
-        )
-    with col13:
-        # Percent of room by location
-        st.subheader("Percent of Room by Location")
-        df = conn.query("SELECT acm.acm_location, COUNT(bp.bp_room_id) as room_count FROM public.\"Bed_price\" bp JOIN public.\"Accommodation\" acm ON bp.bp_accommodation_id = acm.acm_id GROUP BY acm.acm_location;", ttl="10m")
-        # map province to location
-        reversed_provinces = {v: k for k, v in provinces.items()}
-        df['acm_location'] = df['acm_location'].map(reversed_provinces)
-        df = df.dropna(subset=['acm_location'])
-        st.plotly_chart(
-            px.pie(df, values='room_count', names='acm_location')
+        # Apply the color mapping function
+        result_df['color'] = result_df['pos_ratio'].apply(assign_color)
+        province = ['Tất cả'] + result_df['acm_location'].unique().tolist()
+        selected_province = st.selectbox("Chọn tỉnh thành", province)
+        selected_location = {"lat": 16.0, "lon": 108.0}
+        if selected_province == 'Tất cả':
+                filtered_data = df
+                selected_location = {"lat": 16.0, "lon": 108.0}
+                zoom = 9
+        else:
+            filtered_data = result_df[result_df['acm_location'] == selected_province]
+            if not filtered_data.empty:
+                selected_location = {"lat": filtered_data['lat'].mean(), "lon": filtered_data['lon'].mean()}
+                zoom = 12
+            else:
+                selected_location = {"lat": 16.0, "lon": 108.0}
+                zoom = 6
+        # Define a ColumnLayer
+        column_layer = pdk.Layer(
+            "ColumnLayer",
+            result_df,
+            get_position=["lon", "lat"],  # Longitude and Latitude for column placement
+            get_elevation="pos_ratio",  # Column height based on 'value'
+            elevation_scale=1,  # Scale factor for height
+            radius=200,  # Radius of the base of each column
+            get_fill_color="color",  # Use the custom colors
+            pickable=True,  # Enable tooltips
         )
 
-    # Average price by guests number
-    st.subheader("Average Price by Guests Number")
-    df = conn.query("SELECT rm.rm_guests_number, AVG(bp.bp_price) as avg_price FROM public.\"Bed_price\" bp JOIN public.\"Rooms\" rm ON bp.bp_room_id = rm.rm_room_id and bp.bp_accommodation_id = rm.rm_accommodation_id GROUP BY rm.rm_guests_number;", ttl="10m")
-    st.plotly_chart(
-        px.line(df, x='rm_guests_number', y='avg_price')
-    )
+        # Tooltip configuration
+        tooltip = {
+            "html": """
+            <b>Name:</b> {acm_name}<br/>
+            <b>Positive percent:</b> {pos_ratio}%<br/>
+            """,
+            "style": {"backgroundColor": "steelblue", "color": "white"}
+        }
+
+        # Set the initial view state
+        view_state = pdk.ViewState(
+            latitude=selected_location['lat'],  # Approximate center of Vietnam
+            longitude=selected_location['lon'],
+            zoom=zoom,
+            pitch=40
+        )
+
+        # Create and save the Deck
+        deck = pdk.Deck(
+            layers=[column_layer],
+            initial_view_state=view_state,
+            tooltip=tooltip
+        )
+
+        # Save the visualization to an HTML file
+        st.pydeck_chart(deck)
+    with col12:
+        df = eda_df[['fb_nationality', 'acm_location']]
+        # Function to map nationality to continent
+        def country_to_continent(country_name):
+            try:
+                country_alpha2 = pc.country_name_to_country_alpha2(country_name)
+                country_continent_code = pc.country_alpha2_to_continent_code(country_alpha2)
+                country_continent_name = pc.convert_continent_code_to_continent_name(country_continent_code)
+                return country_continent_name
+            except:
+                return 'Unknown'
+
+        # Apply the function to map nationalities to continents
+        df['Continent'] = df['fb_nationality'].apply(country_to_continent)
+        df['acm_location'] = df['acm_location'].str.replace(', Vietnam', '')
+        # Filter out nationalities that are not Vietnam
+        df = df[df['fb_nationality'] != 'Vietnam']
+        # Group by location and continent to get counts
+        grouped = df.groupby(['acm_location', 'Continent']).size().unstack(fill_value=0)
+
+        # Calculate percentages
+        grouped_percent = grouped.div(grouped.sum(axis=1), axis=0) * 100
+
+        # Calculate the total percentage for each location
+        grouped_percent['Total'] = grouped_percent.sum(axis=1)
+
+        # Sort by the total percentage in ascending order
+        grouped_percent_sorted = grouped_percent.sort_values(by='Total', ascending=True).drop(columns='Total')
+
+        # Melt the DataFrame to long format for Plotly
+        grouped_percent_melted = grouped_percent_sorted.reset_index().melt(id_vars='acm_location', var_name='Continent', value_name='Percentage')
+
+        # Plotting the stacked bar chart using Plotly
+        fig = px.bar(grouped_percent_melted, 
+                    x='acm_location', 
+                    y='Percentage', 
+                    color='Continent', 
+                    title='Percentage of Each Visitor Continent in Each Location (Sorted by Magnitude, Smaller on Top)',
+                    labels={'acm_location': 'Location', 'Percentage': 'Percentage'},
+                    barmode='stack')
+        st.plotly_chart(fig, use_container_width=True)
+
