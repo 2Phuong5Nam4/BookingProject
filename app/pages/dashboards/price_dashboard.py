@@ -8,6 +8,8 @@ import logging as log
 import os
 from streamlit_calendar import calendar
 from datetime import datetime, timedelta
+import pydeck as pdk
+import pycountry_convert as pc
 
 charts = """
 - Dash tổng quan về acc:
@@ -143,7 +145,15 @@ def create_collapsible_container(title, content_func):
     with st.expander(title, expanded=False):
         return content_func()
 
+def preprocess(inner_join):
+    result_df = inner_join.groupby('fb_accommodation_id')[['fb_positive', 'fb_negative']].count().reset_index()
+    result_df = pd.merge(result_df, inner_join[['fb_accommodation_id', 'acm_lat', 'acm_long', 'acm_name', 'acm_location']], on='fb_accommodation_id', how='left').drop_duplicates(subset='fb_accommodation_id')
 
+    result_df['pos_ratio'] = result_df['fb_positive'] / (result_df['fb_positive'] + result_df['fb_negative']) * 100
+    result_df['pos_ratio'] = result_df['pos_ratio'].round(2)  # Round to 2 decimal places
+
+    result_df.rename(columns={'acm_lat': 'lat', 'acm_long': 'lon'}, inplace=True)
+    return result_df
 def show(header):
 
     if 'location_option' not in st.session_state:
