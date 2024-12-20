@@ -89,6 +89,31 @@ st.markdown("""
 
 st.markdown('<div class="stTitle">Top Picks for Your Stay</div>', unsafe_allow_html=True)
 
+accommodation_types = [
+    'Apartments',
+    'Hostels',
+    'Hotels',
+    'Motels',
+    'Resorts',
+    'Bed and breakfasts',
+    'Farm stays',
+    'Villas',
+    'Campsites',
+    'Guest houses',
+    'Holiday homes',
+    'Lodges',
+    'Homestays',
+    'Country houses',
+    'Luxury tents',
+    'Capsule hotels',
+    'Love hotels',
+    'Chalets',
+    'Boats',
+    'Inns',
+    'Aparthotels',
+    'Cruises'
+]
+
 location = ["Ha Long, Quang Ninh, Vietnam", "Hoi An, Quang Nam, Vietnam",
             "Thua Thien Hue, Vietnam", "Nha Trang, Khanh Hoa, Vietnam",
             "Da Lat, Lam Dong, Vietnam", "Vung Tau, Ba Ria - Vung Tau, Vietnam", "Da Nang, Vietnam",
@@ -103,7 +128,7 @@ with col1:
 with col2:
     option1 = st.selectbox(
         "Tùy chọn:",
-        options=["Lựa chọn 1", "Lựa chọn 2", "Lựa chọn 3"],
+        options=accommodation_types,
         label_visibility="collapsed",
         key=f"selectbox_1"
     )
@@ -116,7 +141,7 @@ with col2:
 user_input_address = st.text_input("Specific address: ")
 user_input_others = st.text_input("Other things you want (amentities, price per night,...): ")
 
-crawl_date = '2024-11-14'
+
 query = """
     SELECT * 
     FROM public."Accommodation" as ac
@@ -136,9 +161,7 @@ df_copy['rm_guests_number'] = df_copy['rm_guests_number'].astype(str) + " people
 df_copy['bp_price'] = df_copy['bp_price'].astype(str) + " VND"
 df_copy["acm_amenities"] = df_copy["acm_amenities"].str.replace("[", "").str.replace("]", "").str.replace("'", "")
 df_copy["rm_bed_types"] = df_copy["rm_bed_types"].str.replace("[", "").str.replace("]", "").str.replace("'", "")
-df_copy['room_description'] = df_copy['acm_address'] + "Suitable for " + df_copy[
-    'rm_guests_number'] + ' with Bed type: ' + df_copy['rm_bed_types'] + '. Price: ' + df_copy[
-                                  'bp_price'] + ' per night.'
+df_copy['room_description'] = df_copy['acm_address'] + "Suitable for " + df_copy['rm_guests_number'] + ' with Bed type: ' + df_copy['rm_bed_types'] + '. Price: ' + df_copy['bp_price'] + ' per night.'
 df_copy = df_copy.drop(columns=['rm_guests_number', 'rm_bed_types', 'bp_price', 'acm_location', 'acm_address'])
 df_copy = df_copy.groupby('acm_id').agg({
     'acm_name': 'first',
